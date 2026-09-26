@@ -11,7 +11,19 @@
       "path": "./packages/platform"
     },
     {
+      "path": "./packages/persistence"
+    },
+    {
       "path": "./apps/provider-sim"
+    },
+    {
+      "path": "./apps/worker"
+    },
+    {
+      "path": "./apps/api"
+    },
+    {
+      "path": "./apps/e2e"
     }
   ]
 }

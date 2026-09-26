@@ -88,6 +88,14 @@ export default tseslint.config(
     },
   },
   {
+    // Nest modules are classes by contract, and a test double for a Nest
+    // ExecutionContext is legitimately an empty class.
+    files: ["apps/api/**/*.ts", "apps/e2e/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-extraneous-class": "off",
+    },
+  },
+  {
     files: ["**/*.test.ts"],
     rules: {
       "@typescript-eslint/no-non-null-assertion": "off",

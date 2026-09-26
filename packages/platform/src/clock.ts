@@ -49,6 +49,17 @@ export function formatInstant(instant: Instant): string {
 }
 
 /**
+ * Convert to a `Date`, for a driver that demands one.
+ *
+ * The `pg` driver binds `timestamptz` from a `Date`, so the conversion has to
+ * happen somewhere; it happens here, inside the clock boundary, rather than at
+ * each call site where the lint rule would have to be silenced.
+ */
+export function toJsDate(instant: Instant): Date {
+  return new Date(instant.epochMilliseconds);
+}
+
+/**
  * Parse ISO-8601 into an instant.
  *
  * Deliberately stricter than `Date.parse`, which accepts implementation-defined

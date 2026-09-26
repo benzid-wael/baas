@@ -1,0 +1,32 @@
+{
+  "name": "@baas/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "System tests that wire several apps together. Contains no production code.",
+  "baas": {
+    "layer": "e2e"
+  },
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@baas/api": "workspace:*",
+    "@baas/domain": "workspace:*",
+    "@baas/persistence": "workspace:*",
+    "@baas/platform": "workspace:*",
+    "@baas/provider-sim": "workspace:*",
+    "@baas/worker": "workspace:*",
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/core": "^11.0.1",
+    "@types/node": "^22.10.2",
+    "@types/supertest": "^6.0.2",
+    "reflect-metadata": "^0.2.2",
+    "supertest": "^7.0.0",
+    "typescript": "^5.7.2",
+    "uuidv7": "^1.0.2",
+    "vitest": "^2.1.8"
+  }
+}

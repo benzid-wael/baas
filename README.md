@@ -32,12 +32,41 @@ packages/
   domain/         framework-free core. Zero runtime dependencies, enforced.
   platform/       infrastructure seams: clock, ids, config, logging, errors.
   contracts/      wire schemas -> types, validation, OpenAPI.
+  persistence/    migrations, Kysely, outbox, inbox, idempotency.
 apps/
+  api/            HTTP transport and the guard chain.
+  worker/         dispatcher, reconciler, scheduler.
   provider-sim/   partner sandbox simulator. Development and CI only.
+  e2e/            system tests that wire several apps. No production code.
 ```
 
 Everything else in the RFC's layout arrives with its task. The workspace is
 built one package at a time, and each arrives with its gate already passing.
+
+## Tests
+
+There is no way to run the suite without a database, and that is deliberate.
+`startDatabase()` downloads and runs **real** PostgreSQL with no daemon, no
+socket and no Docker, so `pnpm test` works on a laptop that has never
+installed it. No persistence test is skippable: the incumbent has 521 skipped
+tests and that is the layer where its real defects lived.
+
+`apps/e2e/src/spine.test.ts` is the one to read first. It asserts the whole
+spine in one test — enqueue, dispatch, a signed webhook, a row in
+`provider_inbox`, reconciliation to `confirmed` — with no partner sandbox and
+no operator.
+
+## Two things a deployment must get right
+
+Both are silent when wrong, and neither is visible in a single-tenant
+environment.
+
+1. **Do not connect as a superuser.** A superuser bypasses row-level security
+   entirely, even under `FORCE ROW LEVEL SECURITY`. The policies would be in
+   place and tenant isolation would not exist.
+2. **Set `app.tenant_id` transaction-locally**, with `set_config(..., true)`
+   inside a transaction. The session-scoped form survives a pooled connection
+   being returned, so the next request inherits the previous tenant.
 
 ## Boundaries
 

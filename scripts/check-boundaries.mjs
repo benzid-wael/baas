@@ -38,7 +38,11 @@ const LAYER_RANK = {
   domain: 0,
   contracts: 1,
   platform: 1,
+  persistence: 2,
   app: 9,
+  // System tests wire several apps together, which is the one legitimate
+  // reason to import across the top layer. Nothing production may sit here.
+  e2e: 10,
 };
 
 /** Layers that must run anywhere, so may not touch Node built-ins. */
@@ -177,14 +181,17 @@ for (const { dir, manifest } of packages) {
         ? specifier.split("/").slice(0, 2).join("/")
         : specifier.split("/")[0];
 
-      // Rule 3 — declared by the importer.
+      // Rule 3 — declared by the importer. A tool file is build- or test-time
+      // only and not part of the published runtime surface, so it may use
+      // devDependencies — the same exemption that lets it touch Node built-ins.
+      const mayUseDev = isTest || isTool;
       const declared =
         runtime.has(packageName) ||
         peer.has(packageName) ||
-        (isTest && dev.has(packageName));
+        (mayUseDev && dev.has(packageName));
       if (!declared) {
         fail(
-          isTest
+          mayUseDev
             ? `${shown} imports "${packageName}", which ${where} does not declare in dependencies or devDependencies.`
             : `${shown} imports "${packageName}", which ${where} does not declare in dependencies. A devDependency is not available at runtime.`,
         );

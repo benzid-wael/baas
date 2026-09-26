@@ -1,0 +1,43 @@
+{
+  "name": "@baas/persistence",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Migrations own the schema; Kysely reads it. No entities, no synchronize.",
+  "baas": {
+    "layer": "persistence",
+    "toolFiles": [
+      "src/harness.ts"
+    ]
+  },
+  "license": "UNLICENSED",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/harness.d.ts",
+      "default": "./dist/harness.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@baas/domain": "workspace:*",
+    "@baas/platform": "workspace:*",
+    "kysely": "^0.27.5",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "embedded-postgres": "^17.5.0-beta.15",
+    "typescript": "^5.7.2",
+    "uuidv7": "^1.0.2",
+    "vitest": "^2.1.8"
+  }
+}
