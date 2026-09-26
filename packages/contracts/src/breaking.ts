@@ -4,22 +4,32 @@ import type { OpenApiDocument } from "./openapi.js";
  * Detect changes that break an existing client.
  *
  * Not a general OpenAPI differ. It covers the changes that actually break the
- * mobile app and the BFF, and says so explicitly rather than implying
- * completeness:
+ * mobile app and the BFF:
  *
- *   - a path or operation disappears
- *   - a response status disappears
- *   - a property disappears from a schema
- *   - a property becomes required that was not
- *   - a property's type changes
+ *   structural — a path, operation, response, property or schema disappears;
+ *                a property's type changes
+ *   contractual — a property's required-ness changes in either direction
+ *   value-level — an enum's membership changes in either direction; a
+ *                 `pattern` or `format` changes; a length or numeric bound
+ *                 tightens
  *
- * Additive changes — a new path, a new optional property, a new response —
- * are not breaking and pass without a version bump.
+ * **Both directions, deliberately.** A component schema here is referenced
+ * from request and response positions alike, and the two break oppositely:
  *
- * What it does **not** catch, and should not be trusted for: a narrowed
- * `enum`, a tightened `pattern` or `maxLength`, a changed `format`. Those
- * break a client at runtime rather than at compile time. Widening the detector
- * to cover constraint narrowing is New-10.
+ *   adding an enum member       breaks a *consumer* switching exhaustively
+ *   removing an enum member     breaks a *producer* still sending it
+ *   a property becoming required breaks a producer
+ *   a property ceasing to be required breaks a consumer that assumed it
+ *
+ * Without per-path analysis the detector cannot know which position a schema
+ * occupies, so it reports both and names which risk each one is. The version
+ * bump is the acknowledgement. For a banking API whose mobile client switches
+ * on payment and outcome states, a new status genuinely is a client-visible
+ * change, so erring towards reporting is the right direction.
+ *
+ * Still not covered, and stated rather than implied: a widened numeric bound
+ * that overflows a client's integer type, a semantic change behind an
+ * unchanged shape, and anything about behaviour.
  */
 export interface BreakingChange {
   readonly path: string;
@@ -124,17 +134,119 @@ function compareObjectSchema(
         reason: `type changed from ${JSON.stringify(previousType)} to ${JSON.stringify(nextType)}`,
       });
     }
+    // Recursion compares the child's own constraints on the way out, so this
+    // loop must not also compare them or every finding is reported twice.
     compareObjectSchema(`${where}.${property}`, definition, successor, changes);
   }
 
   const previousRequired = new Set(asStringArray(asRecord(before)["required"]));
-  for (const property of asStringArray(asRecord(after)["required"])) {
+  const nextRequired = new Set(asStringArray(asRecord(after)["required"]));
+  for (const property of nextRequired) {
     if (!previousRequired.has(property)) {
       changes.push({
         path: `${where}.${property}`,
-        reason: "property became required",
+        reason: "property became required, which breaks a producer omitting it",
       });
     }
+  }
+  for (const property of previousRequired) {
+    if (!nextRequired.has(property) && property in nextProperties) {
+      changes.push({
+        path: `${where}.${property}`,
+        reason:
+          "property is no longer required, which breaks a consumer assuming it is present",
+      });
+    }
+  }
+
+  // A schema can be a bare enum or a constrained scalar with no properties at
+  // all, so the top level is compared too.
+  compareConstraints(where, before, after, changes);
+}
+
+/**
+ * Value-level constraints. Tightening breaks; loosening does not, except for
+ * enums and opaque constraints where both directions carry a risk worth
+ * naming.
+ */
+function compareConstraints(
+  where: string,
+  before: unknown,
+  after: unknown,
+  changes: BreakingChange[],
+): void {
+  const previous = asRecord(before);
+  const next = asRecord(after);
+
+  compareEnum(where, previous, next, changes);
+
+  for (const key of ["pattern", "format"] as const) {
+    const was = previous[key];
+    const now = next[key];
+    if (was !== undefined && now !== was) {
+      changes.push({
+        path: where,
+        reason:
+          now === undefined
+            ? `${key} removed`
+            : `${key} changed from ${JSON.stringify(was)} to ${JSON.stringify(now)}`,
+      });
+    }
+  }
+
+  // Tightening only: a smaller ceiling or a larger floor rejects values that
+  // were previously accepted.
+  for (const [key, direction] of [
+    ["maxLength", "lower"],
+    ["maximum", "lower"],
+    ["maxItems", "lower"],
+    ["minLength", "higher"],
+    ["minimum", "higher"],
+    ["minItems", "higher"],
+  ] as const) {
+    const was = previous[key];
+    const now = next[key];
+    if (typeof was !== "number" || typeof now !== "number") {
+      continue;
+    }
+    const tightened = direction === "lower" ? now < was : now > was;
+    if (tightened) {
+      changes.push({
+        path: where,
+        reason: `${key} tightened from ${was.toString()} to ${now.toString()}`,
+      });
+    }
+  }
+}
+
+function compareEnum(
+  where: string,
+  previous: Record<string, unknown>,
+  next: Record<string, unknown>,
+  changes: BreakingChange[],
+): void {
+  const was = previous["enum"];
+  const now = next["enum"];
+  if (!Array.isArray(was) || !Array.isArray(now)) {
+    return;
+  }
+  const before = new Set(was.map((value) => JSON.stringify(value)));
+  const after = new Set(now.map((value) => JSON.stringify(value)));
+
+  const removed = [...before].filter((value) => !after.has(value));
+  const added = [...after].filter((value) => !before.has(value));
+
+  if (removed.length > 0) {
+    changes.push({
+      path: where,
+      reason: `enum removed ${removed.join(", ")}, which breaks a producer still sending it`,
+    });
+  }
+  if (added.length > 0) {
+    changes.push({
+      path: where,
+      reason: `enum added ${added.join(", ")}, which breaks a consumer switching exhaustively`,
+    });
   }
 }
 

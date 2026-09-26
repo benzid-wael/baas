@@ -66,6 +66,31 @@ Every package declares its layer in its own `package.json`:
    Native. A build tool inside such a package declares itself in
    `baas.toolFiles` and is exempt.
 
+## Contracts
+
+One zod schema per concept in `packages/contracts`. From it come the
+TypeScript type, HTTP validation and the OpenAPI document; the mobile client
+will follow. A schema reaches the published document by being registered in
+`contracts.ts` and by nothing else, so the surface is a list someone can read.
+
+`openapi.json` is committed and byte-compared. `pnpm check:openapi` fails when
+it is stale, and fails harder when the change would break a client:
+
+- **structural** — a path, operation, response, property or schema disappears;
+  a type changes
+- **contractual** — a property's required-ness changes, in either direction
+- **value-level** — an enum gains or loses a member; a `pattern` or `format`
+  changes; a length or numeric bound tightens
+
+Both directions are reported because a component schema is referenced from
+request and response positions alike, and they break oppositely: adding an enum
+member breaks a consumer switching exhaustively, removing one breaks a producer
+still sending it. Each finding names which risk it is.
+
+A deliberate break is declared by bumping `OPENAPI_VERSION` in
+`packages/contracts/src/contracts.ts`. The gate then says the break was
+intended and passes.
+
 ## Configuration
 
 `APP_ENV` is the deployment tier — `dev`, `stage` or `production` — and drives
