@@ -1,0 +1,31 @@
+{
+  "name": "baas",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Superchat banking platform, second generation",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "typecheck": "tsc --build --force",
+    "check:domain-purity": "node scripts/check-domain-purity.mjs",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run check:domain-purity && pnpm run test:coverage"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1",
+    "vitest": "^2.1.8"
+  }
+}
