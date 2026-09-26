@@ -30,6 +30,25 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@26.6.3)
 
+  apps/provider-sim:
+    dependencies:
+      '@baas/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@baas/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.4
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.4)
+
   packages/contracts:
     dependencies:
       '@baas/domain':

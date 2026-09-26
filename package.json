@@ -16,6 +16,7 @@
     "typecheck": "tsc --build --force",
     "check:domain-purity": "node scripts/check-domain-purity.mjs",
     "check:config": "tsc --build && node packages/platform/dist/config/check.js",
+    "sim": "tsc --build && node apps/provider-sim/dist/main.js",
     "openapi:generate": "tsc --build && node packages/contracts/dist/cli.js --write openapi.json",
     "check:openapi": "tsc --build && node packages/contracts/dist/cli.js --check openapi.json",
     "test": "vitest run",

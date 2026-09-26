@@ -9,6 +9,9 @@
     },
     {
       "path": "./packages/platform"
+    },
+    {
+      "path": "./apps/provider-sim"
     }
   ]
 }

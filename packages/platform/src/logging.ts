@@ -1,5 +1,8 @@
 import { pino } from "pino";
 import type { DestinationStream, Logger, LoggerOptions } from "pino";
+
+/** Re-exported so nothing outside this package imports pino directly. */
+export type { Logger } from "pino";
 import { describeError } from "./errors.js";
 
 /**
