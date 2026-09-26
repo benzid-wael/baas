@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Partner sandbox simulator that delivers webhooks, including the ones that never arrive.",
+  "baas": {
+    "layer": "app"
+  },
   "license": "UNLICENSED",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -14,14 +14,14 @@
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "typecheck": "tsc --build --force",
-    "check:domain-purity": "node scripts/check-domain-purity.mjs",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:config": "tsc --build && node packages/platform/dist/config/check.js",
     "sim": "tsc --build && node apps/provider-sim/dist/main.js",
     "openapi:generate": "tsc --build && node packages/contracts/dist/cli.js --write openapi.json",
     "check:openapi": "tsc --build && node packages/contracts/dist/cli.js --check openapi.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run check:domain-purity && pnpm run check:openapi && pnpm run test:coverage"
+    "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run check:boundaries && pnpm run check:openapi && pnpm run test:coverage"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

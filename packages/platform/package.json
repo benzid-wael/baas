@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Infrastructure seams: clock, ids, logging, error description.",
+  "baas": {
+    "layer": "platform"
+  },
   "license": "UNLICENSED",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

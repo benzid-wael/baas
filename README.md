@@ -2,7 +2,8 @@
 
 Superchat banking platform, second generation. Design lives in
 `superchat-platform/RFCs/BaaS/` — `rfc-baas-architecture.md` for the design,
-`breakdown.md` for the plan of record, `rollout.md` for what ships when.
+`breakdown.md` for the plan of record, `rollout.md` for what ships when,
+`adapter-lift-inventory.md` for what can be carried over from the incumbent.
 
 ## Requirements
 
@@ -11,34 +12,69 @@ Superchat banking platform, second generation. Design lives in
 
 ## Commands
 
-| Command                    | What it does                                         |
-| -------------------------- | ---------------------------------------------------- |
-| `pnpm verify`              | Every local gate, in the order CI runs them          |
-| `pnpm format` / `:check`   | Prettier                                             |
-| `pnpm lint`                | ESLint, type-checked on source, syntactic on tooling |
-| `pnpm typecheck`           | `tsc --build` across the project references          |
-| `pnpm check:domain-purity` | Asserts `packages/domain` depends on nothing         |
-| `pnpm test` / `:coverage`  | Vitest; coverage thresholds at 70%                   |
+| Command                   | What it does                                         |
+| ------------------------- | ---------------------------------------------------- |
+| `pnpm verify`             | Every local gate, in the order CI runs them          |
+| `pnpm format` / `:check`  | Prettier                                             |
+| `pnpm lint`               | ESLint, type-checked on source, syntactic on tooling |
+| `pnpm typecheck`          | `tsc --build` across the project references          |
+| `pnpm check:boundaries`   | Layer direction, declared imports, domain purity     |
+| `pnpm check:config`       | Validate an environment against its tier contract    |
+| `pnpm check:openapi`      | Fail if `openapi.json` is stale or breaks a client   |
+| `pnpm openapi:generate`   | Rewrite `openapi.json` from the contract registry    |
+| `pnpm test` / `:coverage` | Vitest; coverage thresholds at 70%                   |
+| `pnpm sim`                | Run the partner simulator on `PORT` (default 4010)   |
 
 ## Layout
 
 ```
 packages/
-  domain/        framework-free core. Zero runtime dependencies, enforced.
+  domain/         framework-free core. Zero runtime dependencies, enforced.
+  platform/       infrastructure seams: clock, ids, config, logging, errors.
+  contracts/      wire schemas -> types, validation, OpenAPI.
+apps/
+  provider-sim/   partner sandbox simulator. Development and CI only.
 ```
 
 Everything else in the RFC's layout arrives with its task. The workspace is
 built one package at a time, and each arrives with its gate already passing.
 
-## The domain purity rule
+## Boundaries
 
-`packages/domain` declares no `dependencies` and no `peerDependencies`, and
-imports nothing but relative paths. Two mechanisms hold it:
+Every package declares its layer in its own `package.json`:
 
-1. `pnpm check:domain-purity` inspects the manifest and every import. This is
-   the **primary** enforcement.
-2. pnpm's isolated `node_modules` makes an undeclared package unresolvable —
-   but only if that package is absent from the workspace root as well. Node
-   resolution walks up the directory tree, so a root `devDependency` is
-   visible from every package regardless of what pnpm does. The root therefore
-   declares **only the toolchain**, never a runtime library.
+```json
+{ "baas": { "layer": "domain" } }
+```
+
+`pnpm check:boundaries` enforces four rules:
+
+1. **Every package declares a layer.** A package the gate cannot classify is a
+   package it cannot check, so an undeclared layer fails rather than passing.
+2. **Dependencies point inward.** A package may import a strictly lower layer
+   only. `domain` (0) → `contracts`, `platform` (1) → `app` (9). Equal ranks
+   may not import each other, which is what keeps infrastructure out of the
+   contracts the mobile client is generated from.
+3. **Every bare import is declared by the importing package**, in
+   `dependencies` for source and `devDependencies` for tests. This is the rule
+   resolution cannot provide: pnpm isolates transitive dependencies, but Node
+   resolution walks up the tree, so anything installed at the workspace root
+   is importable everywhere. The root therefore holds only the toolchain, and
+   this rule is what keeps that true.
+4. **The domain imports nothing**, and environment-neutral layers (`domain`,
+   `contracts`) import no Node built-in, so the generated client runs in React
+   Native. A build tool inside such a package declares itself in
+   `baas.toolFiles` and is exempt.
+
+## Configuration
+
+`APP_ENV` is the deployment tier — `dev`, `stage` or `production` — and drives
+every hardening rule. It is deliberately **not** `NODE_ENV`, which the image
+pins to `production` and so cannot distinguish environments. An unset `APP_ENV`
+on a production image resolves to `production`, so an omission can only make a
+deployment stricter.
+
+Copy `.env.example` to `.env` to start locally. Every secret in it is a
+placeholder that stage and production refuse, so the file cannot be promoted by
+accident. `pnpm check:config` validates a manifest against its tier and reports
+**every** violated rule at once.

@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Framework-free core: types, invariants, pure decisions. Depends on nothing.",
+  "baas": {
+    "layer": "domain"
+  },
   "license": "UNLICENSED",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

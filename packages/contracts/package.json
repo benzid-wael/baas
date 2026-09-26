@@ -4,6 +4,12 @@
   "private": true,
   "type": "module",
   "description": "Wire contracts: one zod schema per concept, from which types, validation, OpenAPI and the client are derived.",
+  "baas": {
+    "layer": "contracts",
+    "toolFiles": [
+      "src/cli.ts"
+    ]
+  },
   "license": "UNLICENSED",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
