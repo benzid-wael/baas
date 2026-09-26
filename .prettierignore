@@ -2,3 +2,8 @@ node_modules/
 dist/
 coverage/
 pnpm-lock.yaml
+
+# Generated and byte-compared in CI. Its format is the generator's, not
+# Prettier's; a second formatter would make the file and `check:openapi`
+# permanently disagree.
+openapi.json

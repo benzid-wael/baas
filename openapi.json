@@ -1,0 +1,196 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "baas",
+    "version": "0.1.0"
+  },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "CapabilityReport": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "appEnv": {
+            "type": "string",
+            "enum": [
+              "dev",
+              "stage",
+              "production"
+            ]
+          },
+          "tenants": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$"
+            }
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "pattern": "^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$"
+                },
+                "available": {
+                  "type": "boolean"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "operations": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "pattern": "^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$"
+                  }
+                }
+              },
+              "required": [
+                "provider",
+                "available",
+                "operations"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "checkedAt": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          }
+        },
+        "required": [
+          "service",
+          "appEnv",
+          "tenants",
+          "providers",
+          "checkedAt"
+        ],
+        "additionalProperties": false
+      },
+      "CurrencyCode": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "string",
+        "enum": [
+          "AED",
+          "BHD",
+          "EGP",
+          "EUR",
+          "GBP",
+          "INR",
+          "JOD",
+          "JPY",
+          "KWD",
+          "OMR",
+          "PHP",
+          "PKR",
+          "SAR",
+          "TND",
+          "USD"
+        ]
+      },
+      "ErrorResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$"
+          },
+          "message": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "correlationId"
+        ],
+        "additionalProperties": false
+      },
+      "Instant": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+      },
+      "Money": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(?:\\.\\d+)?$"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "AED",
+              "BHD",
+              "EGP",
+              "EUR",
+              "GBP",
+              "INR",
+              "JOD",
+              "JPY",
+              "KWD",
+              "OMR",
+              "PHP",
+              "PKR",
+              "SAR",
+              "TND",
+              "USD"
+            ]
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "additionalProperties": false
+      },
+      "Slug": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "string",
+        "maxLength": 64,
+        "pattern": "^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$"
+      },
+      "Uuid": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      }
+    }
+  }
+}
