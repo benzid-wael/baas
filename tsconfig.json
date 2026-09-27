@@ -14,6 +14,9 @@
       "path": "./packages/persistence"
     },
     {
+      "path": "./packages/provider-keel"
+    },
+    {
       "path": "./apps/provider-sim"
     },
     {

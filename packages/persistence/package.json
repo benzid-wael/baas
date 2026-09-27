@@ -33,7 +33,7 @@
     "pg": "^8.13.1"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
+    "@types/node": "^24.0.0",
     "@types/pg": "^8.11.10",
     "embedded-postgres": "^17.5.0-beta.15",
     "typescript": "^5.7.2",

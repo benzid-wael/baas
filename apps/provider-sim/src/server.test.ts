@@ -16,6 +16,7 @@ import type { SimRoute } from "./routes.js";
 
 const { privateKey: KEEL_KEY } = generateKeyPairSync("rsa", {
   modulusLength: 2048,
+  publicKeyEncoding: { type: "spki", format: "pem" },
   privateKeyEncoding: { type: "pkcs8", format: "pem" },
 });
 

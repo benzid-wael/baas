@@ -1,11 +1,11 @@
 {
-  "name": "@baas/worker",
+  "name": "@baas/provider-keel",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Dispatcher, reconciler and leased scheduler. The only component that calls a provider for a write.",
+  "description": "Keel adapter. Protocol only: no persistence, no sibling services.",
   "baas": {
-    "layer": "app"
+    "layer": "provider"
   },
   "license": "UNLICENSED",
   "main": "./dist/index.js",
@@ -21,7 +21,6 @@
   },
   "dependencies": {
     "@baas/domain": "workspace:*",
-    "@baas/persistence": "workspace:*",
     "@baas/platform": "workspace:*"
   },
   "devDependencies": {

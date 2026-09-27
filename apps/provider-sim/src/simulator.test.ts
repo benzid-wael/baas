@@ -10,6 +10,7 @@ import { DELIVERY_MODES } from "./scenario.js";
 
 const { privateKey } = generateKeyPairSync("rsa", {
   modulusLength: 2048,
+  publicKeyEncoding: { type: "spki", format: "pem" },
   privateKeyEncoding: { type: "pkcs8", format: "pem" },
 });
 const KEEL_KEY = privateKey;

@@ -39,6 +39,9 @@ const LAYER_RANK = {
   contracts: 1,
   platform: 1,
   persistence: 2,
+  // Adapters sit beside persistence, not above it, so an adapter cannot import
+  // a repository. An adapter that needs a database row is not an adapter.
+  provider: 2,
   app: 9,
   // System tests wire several apps together, which is the one legitimate
   // reason to import across the top layer. Nothing production may sit here.
