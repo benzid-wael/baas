@@ -32,6 +32,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@baas/application':
+        specifier: workspace:*
+        version: link:../../packages/application
       '@baas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -99,6 +102,12 @@ importers:
       '@baas/api':
         specifier: workspace:*
         version: link:../api
+      '@baas/application':
+        specifier: workspace:*
+        version: link:../../packages/application
+      '@baas/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@baas/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -120,12 +129,24 @@ importers:
       '@nestjs/core':
         specifier: ^11.0.1
         version: 11.2.6(@nestjs/common@11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.2.6)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@types/bcrypt':
+        specifier: ^5.0.2
+        version: 5.0.2
+      '@types/jsonwebtoken':
+        specifier: ^9.0.7
+        version: 9.0.10
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.0
       '@types/supertest':
         specifier: ^6.0.2
         version: 6.0.3
+      bcrypt:
+        specifier: ^5.1.1
+        version: 5.1.1
+      jsonwebtoken:
+        specifier: ^9.0.2
+        version: 9.0.3
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2

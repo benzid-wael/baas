@@ -74,9 +74,14 @@ describe("the published registry", () => {
     );
   });
 
-  it("publishes no paths yet, and says so by being empty", () => {
-    // Resource schemas and paths arrive with the milestones that build them.
-    // Registering a guess now would publish a contract and then break it.
-    expect(currentDocument().paths).toEqual({});
+  it("publishes only paths that have a controller behind them", () => {
+    // Paths arrive with the milestone that mounts them. A documented endpoint
+    // with no route is worse than an undocumented one, because a client will
+    // be written against it — which is why New-12 compares the two.
+    expect(Object.keys(currentDocument().paths).sort()).toEqual([
+      "/mobile/accounts",
+      "/mobile/accounts/{accountReference}",
+      "/mobile/accounts/{accountReference}/transactions",
+    ]);
   });
 });

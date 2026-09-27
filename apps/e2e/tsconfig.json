@@ -8,11 +8,29 @@
   },
   "include": ["src/**/*.ts"],
   "references": [
-    { "path": "../../packages/domain" },
-    { "path": "../../packages/platform" },
-    { "path": "../../packages/persistence" },
-    { "path": "../api" },
-    { "path": "../worker" },
-    { "path": "../provider-sim" }
+    {
+      "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/platform"
+    },
+    {
+      "path": "../../packages/persistence"
+    },
+    {
+      "path": "../api"
+    },
+    {
+      "path": "../worker"
+    },
+    {
+      "path": "../provider-sim"
+    },
+    {
+      "path": "../../packages/application"
+    },
+    {
+      "path": "../../packages/contracts"
+    }
   ]
 }

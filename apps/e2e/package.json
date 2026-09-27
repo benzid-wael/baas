@@ -27,6 +27,12 @@
     "supertest": "^7.0.0",
     "typescript": "^5.7.2",
     "uuidv7": "^1.0.2",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "@baas/application": "workspace:*",
+    "@baas/contracts": "workspace:*",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "@types/bcrypt": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.7"
   }
 }

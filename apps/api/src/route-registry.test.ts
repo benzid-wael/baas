@@ -142,10 +142,15 @@ describe("the published registry", () => {
     }
   });
 
-  it("registers no paths yet, because no controller is mounted for them", () => {
+  it("registers the read paths that M1-8 mounted, and no others", () => {
     // Paths arrive with their controllers. A documented endpoint that does
-    // not exist is worse than an undocumented one.
-    expect([...buildRegistry().paths.keys()]).toEqual([]);
+    // not exist is worse than an undocumented one, so this list grows only
+    // when a controller does.
+    expect([...buildRegistry().paths.keys()].sort()).toEqual([
+      "/mobile/accounts",
+      "/mobile/accounts/{accountReference}",
+      "/mobile/accounts/{accountReference}/transactions",
+    ]);
   });
 
   it("round-trips a balance in each of its three shapes", () => {

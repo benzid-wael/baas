@@ -3,6 +3,7 @@ export * from "./assertion.js";
 export * from "./customer-lookup.js";
 export * from "./decorators.js";
 export * from "./guards.js";
+export * from "./mobile.controller.js";
 export * from "./principal.js";
 export * from "./route-registry.js";
 export * from "./system.controller.js";

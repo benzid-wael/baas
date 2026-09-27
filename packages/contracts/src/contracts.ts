@@ -72,5 +72,49 @@ export function buildRegistry(): ContractRegistry {
     .schema("TransactionPage", transactionPageSchema)
     .schema("Statement", statementSchema)
     .schema("StatementList", statementListSchema)
+    .path("/mobile/accounts", {
+      get: {
+        operationId: "listAccounts",
+        summary: "The customer's accounts, each with its balance",
+        responses: {
+          "200": {
+            description: "The customer's accounts",
+            schema: "AccountList",
+          },
+          "401": { description: "Unauthenticated", schema: "ErrorResponse" },
+        },
+      },
+    })
+    .path("/mobile/accounts/{accountReference}", {
+      get: {
+        operationId: "getAccount",
+        summary: "One account belonging to the customer",
+        responses: {
+          "200": { description: "The account", schema: "Account" },
+          // 404 and not 403: "forbidden" on an account reference confirms the
+          // reference is real to someone who should not know that.
+          "404": {
+            description: "No such account for this customer",
+            schema: "ErrorResponse",
+          },
+        },
+      },
+    })
+    .path("/mobile/accounts/{accountReference}/transactions", {
+      get: {
+        operationId: "listTransactions",
+        summary: "A page of the account's transactions, newest first",
+        responses: {
+          "200": {
+            description: "A page of transactions",
+            schema: "TransactionPage",
+          },
+          "404": {
+            description: "No such account for this customer",
+            schema: "ErrorResponse",
+          },
+        },
+      },
+    })
     .build();
 }
