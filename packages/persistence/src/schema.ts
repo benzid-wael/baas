@@ -161,7 +161,27 @@ export interface BalanceObservationTable {
   recorded_at: Date;
 }
 
+export type TransactionDirection = "debit" | "credit";
+export type TransactionStatus =
+  "pending" | "settled" | "rejected" | "reversed" | "unknown";
+
+/** No surrogate key and no projected_at: see 0007_transaction-projection.sql. */
+export interface TransactionProjectionTable {
+  provider_id: string;
+  transaction_reference: string;
+  tenant_id: string;
+  account_id: string;
+  direction: TransactionDirection;
+  currency: string;
+  amount_minor_units: string;
+  status: TransactionStatus;
+  counterparty_name: string | null;
+  narrative: string | null;
+  occurred_at: Date;
+}
+
 export interface Database {
+  transaction_projection: TransactionProjectionTable;
   balance_observation: BalanceObservationTable;
   account: AccountTable;
   customer: CustomerTable;

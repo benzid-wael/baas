@@ -87,6 +87,30 @@ export class TenantScope {
   }
 
   /**
+   * Run `work` as the projector, permitting writes to the read model.
+   *
+   * Finding A7: the incumbent's settlement state is written by several
+   * services, so no single place can be read to know what happened. The read
+   * model here has exactly one writer, and this is it — deliberately separate
+   * from `runAsProviderSync`, because "we observed the provider" and "we
+   * derived the read model" are different acts and sharing a grant would let
+   * either do the other's job.
+   */
+  async runAsProjector<T>(
+    tenantId: string,
+    work: (db: ScopedDatabase) => Promise<T>,
+  ): Promise<T> {
+    return this.db.transaction().execute(async (trx) => {
+      await sql`SET LOCAL ROLE ${sql.raw(APPLICATION_ROLE)}`.execute(trx);
+      await sql`SELECT set_config('app.tenant_id', ${tenantId}, true)`.execute(
+        trx,
+      );
+      await sql`SELECT set_config('app.projector', 'on', true)`.execute(trx);
+      return work(trx as ScopedDatabase);
+    });
+  }
+
+  /**
    * Read a registry table — `tenant`, `api_client`, `api_client_scope` —
    * which by definition cannot be tenant-scoped, because reading it is how the
    * tenant is established.
