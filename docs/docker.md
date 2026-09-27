@@ -63,13 +63,40 @@ server rather than starting one.
 Every published port is overridable, because a devserver is usually shared and
 5432 is usually taken.
 
-| Variable        | Default | Service      |
-| --------------- | ------- | ------------ |
-| `POSTGRES_PORT` | 5432    | postgres     |
-| `REDIS_PORT`    | 6379    | redis        |
-| `BLNK_PORT`     | 5001    | blnk         |
-| `SIM_PORT`      | 4010    | provider-sim |
-| `API_PORT`      | 3000    | api          |
+| Variable        | Default | Service            |
+| --------------- | ------- | ------------------ |
+| `POSTGRES_PORT` | 5432    | postgres           |
+| `REDIS_PORT`    | 6379    | redis              |
+| `BLNK_PORT`     | 5001    | blnk               |
+| `OIDC_PORT`     | 8090    | mock-oauth2-server |
+| `SIM_PORT`      | 4010    | provider-sim       |
+| `API_PORT`      | 3000    | api                |
+
+## Operator sign-in locally
+
+`mock-oauth2-server` runs in the `infra` profile and needs no configuration.
+Any username and password is accepted; the tokens it issues are real, signed,
+and served from a real JWKS endpoint, which is what the verifier actually
+exercises.
+
+Two settings that look redundant and are not:
+
+```
+OIDC_ISSUER=http://localhost:8090/baas     # a string, compared against `iss`
+OIDC_JWKS_URI=http://oidc:8080/baas/jwks   # a URL, fetched by the service
+```
+
+The token's `iss` is whatever address the **browser** used. The JWKS URI is
+whatever address the **service** can reach. In compose those are different —
+a published port versus a container name — and collapsing them into one
+setting makes local sign-in impossible to configure without lying about one of
+the two. When `api` runs on your machine instead, point the JWKS URI at
+`localhost:8090` as well.
+
+Grant yourself `admin` by putting your subject in
+`OPERATOR_BOOTSTRAP_ADMIN_SUBJECTS`. Seed **two** — dual control needs two
+people, and the incumbent deadlocked three separate workflows because an
+environment had one administrator.
 
 ## What is deliberately not here
 

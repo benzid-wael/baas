@@ -180,7 +180,45 @@ export interface TransactionProjectionTable {
   occurred_at: Date;
 }
 
+export interface OperatorTable {
+  id: string;
+  tenant_id: string;
+  issuer: string;
+  subject: string;
+  email: string | null;
+  display_name: string | null;
+  disabled_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface OperatorRoleTable {
+  id: string;
+  operator_id: string;
+  tenant_id: string;
+  role: string;
+  granted_at: Date;
+  granted_by: string | null;
+  revoked_at: Date | null;
+  revoked_by: string | null;
+  reason: string;
+}
+
+export interface OperatorSessionTable {
+  id: string;
+  tenant_id: string;
+  operator_id: string;
+  token_hash: string;
+  issued_at: Date;
+  expires_at: Date;
+  revoked_at: Date | null;
+  last_seen_at: Date | null;
+}
+
 export interface Database {
+  operator: OperatorTable;
+  operator_role: OperatorRoleTable;
+  operator_session: OperatorSessionTable;
   transaction_projection: TransactionProjectionTable;
   balance_observation: BalanceObservationTable;
   account: AccountTable;

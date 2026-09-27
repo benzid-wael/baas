@@ -6,6 +6,7 @@ export * from "./idempotency.js";
 export * from "./inbox.js";
 export * from "./introspect.js";
 export * from "./migrator.js";
+export * from "./operator-repository.js";
 export * from "./outbox.js";
 export * from "./schema.js";
 export * from "./tenant-scope.js";

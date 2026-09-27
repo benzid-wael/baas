@@ -29,6 +29,9 @@ function hardenedEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     REDIS_URL: "redis://redis:6379",
     OPENAPI_ENABLED: "false",
     APM_SERVER_URL: "https://apm.nrml.tools",
+    OIDC_ISSUER: "https://idp.example",
+    OIDC_AUDIENCE: "baas-portal",
+    OIDC_JWKS_URI: "https://idp.example/jwks",
     PROVIDERS: "keel",
     PROVIDER_KEEL_BASE_URL: "https://sandbox.keel.example",
     PROVIDER_KEEL_CLIENT_ID: "client",
@@ -159,6 +162,31 @@ describe("the production contract", () => {
       "providerCredentialEncryptionKey",
     ]);
     expect(caught?.message).toContain("6 problems");
+  });
+
+  it("requires an identity provider, because an operator console without one is open", () => {
+    const paths = issuesFrom(
+      hardenedEnv({
+        OIDC_ISSUER: undefined,
+        OIDC_AUDIENCE: undefined,
+        OIDC_JWKS_URI: undefined,
+      }),
+    );
+    expect(paths).toEqual(
+      expect.arrayContaining(["oidc.issuer", "oidc.audience", "oidc.jwksUri"]),
+    );
+  });
+
+  it("does not require one in dev, where the compose provider supplies it", () => {
+    expect(() => loadConfig(devEnv())).not.toThrow();
+  });
+
+  it("parses the bootstrap admin list, and defaults it to empty", () => {
+    expect(loadConfig(devEnv()).global.oidc.bootstrapAdminSubjects).toEqual([]);
+    expect(
+      loadConfig(devEnv({ OPERATOR_BOOTSTRAP_ADMIN_SUBJECTS: "a, b ,c" }))
+        .global.oidc.bootstrapAdminSubjects,
+    ).toEqual(["a", "b", "c"]);
   });
 
   it("refuses a placeholder secret in a hardened tier but not in dev", () => {

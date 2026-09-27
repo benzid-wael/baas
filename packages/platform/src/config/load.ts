@@ -130,6 +130,12 @@ function shapeGlobal(env: NodeJS.ProcessEnv, appEnv: string): unknown {
       issuer: env["MOBILE_ASSERTION_ISSUER"],
       audience: env["MOBILE_ASSERTION_AUDIENCE"],
     },
+    oidc: {
+      issuer: env["OIDC_ISSUER"],
+      audience: env["OIDC_AUDIENCE"],
+      jwksUri: env["OIDC_JWKS_URI"],
+      bootstrapAdminSubjects: env["OPERATOR_BOOTSTRAP_ADMIN_SUBJECTS"],
+    },
     providerCredentialEncryptionKey: env["PROVIDER_CREDENTIAL_ENCRYPTION_KEY"],
     callbackHmacSecret: env["CALLBACK_HMAC_SECRET"],
     bootstrapTenantSlug: env["BOOTSTRAP_TENANT_SLUG"],

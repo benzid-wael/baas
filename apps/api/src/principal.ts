@@ -14,6 +14,8 @@ export interface Principal {
   /** Present only on a mobile-surface route, resolved from a signed assertion. */
   readonly customerId?: string;
   readonly externalUserUuid?: string;
+  /** Present only on an operator-surface route, resolved from a session. */
+  readonly operatorId?: string;
 }
 
 export const PRINCIPAL_KEY = "baasPrincipal";

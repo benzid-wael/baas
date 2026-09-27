@@ -15,6 +15,7 @@ import {
 import type { ApiClientRecord } from "./guards.js";
 import {
   MOBILE_SURFACE_KEY,
+  OPERATOR_SURFACE_KEY,
   PUBLIC_KEY,
   ROLES_KEY,
   ROLE_ADMIN,
@@ -398,5 +399,18 @@ describe("5 · AuthorizationPolicyGuard — deny by default", () => {
       expect.objectContaining({ route: "/test" }),
       expect.stringContaining("no authorization policy"),
     );
+  });
+});
+
+describe("an operator surface is itself a policy", () => {
+  it("accepts a route that declares only @OperatorSurface()", () => {
+    // "A signed-in operator, whatever their role" is a policy. Sign-out is
+    // the case: no role can sensibly gate it, and listing every role on it
+    // would state the rule worse.
+    const guard = new AuthorizationPolicyGuard(
+      reflector({ [OPERATOR_SURFACE_KEY]: true }),
+      logger,
+    );
+    expect(guard.canActivate(context(request({})))).toBe(true);
   });
 });

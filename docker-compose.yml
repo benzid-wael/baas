@@ -49,6 +49,12 @@ x-app-env: &app-env
   MOBILE_ASSERTION_PUBLIC_KEY: ${MOBILE_ASSERTION_PUBLIC_KEY:-LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFcWhUS1BnWVpjWUQ3Vys1WXdTZXFXb1U1cHZQWQpOelVtY3poL0tqT3FDL2orSEJKY3AxTUFKbWNMOWw3OWM2V01QWmI4VnhQa1BCU1gwYXN2ZE5ZWmhnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==}
   MOBILE_ASSERTION_ISSUER: ${MOBILE_ASSERTION_ISSUER:-https://bff.local.superchat.internal}
   MOBILE_ASSERTION_AUDIENCE: ${MOBILE_ASSERTION_AUDIENCE:-baas}
+  OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:8090/baas}
+  OIDC_AUDIENCE: ${OIDC_AUDIENCE:-baas-portal}
+  # Reached by compose name from inside the network; the issuer above is what
+  # the browser sees. They differ on purpose.
+  OIDC_JWKS_URI: ${OIDC_JWKS_URI:-http://oidc:8080/baas/jwks}
+  OPERATOR_BOOTSTRAP_ADMIN_SUBJECTS: ${OPERATOR_BOOTSTRAP_ADMIN_SUBJECTS:-}
   PROVIDER_CREDENTIAL_ENCRYPTION_KEY: ${PROVIDER_CREDENTIAL_ENCRYPTION_KEY:-changeme-placeholder-key-32-chars!}
   CALLBACK_HMAC_SECRET: ${CALLBACK_HMAC_SECRET:-changeme-placeholder-hmac-32-char}
   BOOTSTRAP_TENANT_SLUG: ${BOOTSTRAP_TENANT_SLUG:-superchat}
@@ -102,6 +108,24 @@ services:
       BLNK_REDIS_DNS: redis:6379
     ports:
       - "${BLNK_PORT:-5001}:5001"
+
+  # Operator sign-in for development.
+  #
+  # mock-oauth2-server needs no configuration file, which matters here: with a
+  # remote daemon a bind-mounted config would resolve on the daemon's
+  # filesystem rather than yours. It issues real tokens against a real JWKS
+  # endpoint — which is what the verifier exercises — and accepts any login.
+  # It is obviously not an identity provider, and that is the point.
+  oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.11
+    profiles: [infra, full]
+    environment:
+      # Tokens are issued with an `iss` matching the URL the caller used, so
+      # the browser must reach it on the same address the service compares
+      # against. Hence the published port below and OIDC_ISSUER in .env.
+      SERVER_PORT: "8080"
+    ports:
+      - "${OIDC_PORT:-8090}:8080"
 
   # The partner simulator. Development and CI only — it signs webhooks with a
   # key it can generate itself, so anywhere reachable from a deployed

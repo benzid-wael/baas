@@ -30,6 +30,20 @@ export const MobileSurface = () => SetMetadata(MOBILE_SURFACE_KEY, true);
 /** Unauthenticated by explicit declaration, never by omission. */
 export const Public = () => SetMetadata(PUBLIC_KEY, true);
 
+export const OPERATOR_SURFACE_KEY = "baas:operator-surface";
+
+/**
+ * Marks a route as reachable by a signed-in operator.
+ *
+ * The counterpart to `@MobileSurface()`, and deliberately mutually exclusive
+ * with it. These are different trust boundaries: a mobile route carries a
+ * customer identity forwarded by the BFF and may only ever touch that
+ * customer's data, while an operator route carries a staff session and reads
+ * any customer in the tenant. A route that claimed both would be a route
+ * where the stronger authority silently applies.
+ */
+export const OperatorSurface = () => SetMetadata(OPERATOR_SURFACE_KEY, true);
+
 /** The approver role, which `admin` deliberately does not satisfy (D1). */
 export const ROLE_APPROVER = "approver";
 export const ROLE_ADMIN = "admin";

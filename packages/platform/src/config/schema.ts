@@ -91,6 +91,41 @@ export const mobileAssertionSchema = z.object({
   audience: z.string().min(1),
 });
 
+/**
+ * Operator sign-in.
+ *
+ * `issuer` and `jwksUri` are separate settings on purpose, and it is not
+ * redundancy. The issuer is a **string compared** against a token's `iss`
+ * claim; the JWKS URI is a **URL fetched**. In a container they differ: the
+ * browser reaches the provider on the published port while the service
+ * reaches it by compose name, and the token's `iss` is whatever the browser
+ * saw. Collapsing them into one setting makes local sign-in impossible to
+ * configure without lying about one of the two.
+ */
+export const oidcSchema = z.object({
+  issuer: z.string().default(""),
+  audience: z.string().default(""),
+  jwksUri: z.string().default(""),
+  /**
+   * Subjects granted `admin` on first sign-in, once.
+   *
+   * Registration deliberately grants no role, so a fresh environment has
+   * nobody who can grant one. **Seed two.** Finding C3: the incumbent
+   * deadlocked policy publishing, payment-order approval and account-opening
+   * review because an environment had a single administrator and dual control
+   * needs two people.
+   */
+  bootstrapAdminSubjects: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((subject) => subject.trim())
+        .filter((subject) => subject.length > 0),
+    ),
+});
+
 export const throttleSchema = z.object({
   storage: z.enum(["memory", "redis"]).default(TIER_DEFAULTS.THROTTLE_STORAGE),
   redisUrl: z.url().optional(),
@@ -117,6 +152,7 @@ export const globalSchema = z.object({
   throttle: throttleSchema,
   observability: observabilitySchema,
   mobileAssertion: mobileAssertionSchema,
+  oidc: oidcSchema,
   /** Encrypts provider credentials at rest (AES-256-GCM). */
   providerCredentialEncryptionKey: secret,
   /** Verifies inbound provider callbacks. */
@@ -212,6 +248,19 @@ export function applyTierContract(
       `${appEnv} requires OPENAPI_ENABLED=false; the full API surface is not a public document`,
     );
   }
+  for (const [key, path] of [
+    ["OIDC_ISSUER", ["oidc", "issuer"]],
+    ["OIDC_AUDIENCE", ["oidc", "audience"]],
+    ["OIDC_JWKS_URI", ["oidc", "jwksUri"]],
+  ] as const) {
+    if ((env[key] ?? "") === "") {
+      addIssue(
+        path,
+        `${appEnv} requires ${key}; an operator console without an identity provider is an open console`,
+      );
+    }
+  }
+
   if ((env["APM_SERVER_URL"] ?? "") === "") {
     addIssue(
       ["observability", "apmServerUrl"],

@@ -10,6 +10,7 @@ import type { Logger } from "@baas/platform";
 import { describeError } from "@baas/platform";
 import {
   MOBILE_SURFACE_KEY,
+  OPERATOR_SURFACE_KEY,
   PUBLIC_KEY,
   ROLES_KEY,
   ROLE_ADMIN,
@@ -60,11 +61,22 @@ export class ApiClientGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const targets = [context.getHandler(), context.getClass()];
     if (
-      this.reflector.getAllAndOverride<boolean | undefined>(PUBLIC_KEY, [
-        context.getHandler(),
-        context.getClass(),
-      ]) === true
+      this.reflector.getAllAndOverride<boolean | undefined>(
+        PUBLIC_KEY,
+        targets,
+      ) === true
+    ) {
+      return true;
+    }
+    // An operator route is authenticated by a session, not a client
+    // credential: the portal runs in a browser and cannot hold a secret.
+    if (
+      this.reflector.getAllAndOverride<boolean | undefined>(
+        OPERATOR_SURFACE_KEY,
+        targets,
+      ) === true
     ) {
       return true;
     }
@@ -295,7 +307,14 @@ export class AuthorizationPolicyGuard implements CanActivate {
       this.reflector.getAllAndOverride<string[] | undefined>(
         ROLES_KEY,
         targets,
-      ) !== undefined;
+      ) !== undefined ||
+      // "A signed-in operator, whatever their role" is a policy. Without this
+      // the backstop refuses sign-out, which no role can sensibly gate — and
+      // the alternative, listing every role on it, states the rule worse.
+      this.reflector.getAllAndOverride<boolean | undefined>(
+        OPERATOR_SURFACE_KEY,
+        targets,
+      ) === true;
 
     if (!declared) {
       const request = context.switchToHttp().getRequest<RequestWithPrincipal>();
