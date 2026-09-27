@@ -1,3 +1,4 @@
+export * from "./account-repository.js";
 export * from "./customer-repository.js";
 export * from "./database.js";
 export * from "./idempotency.js";

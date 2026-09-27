@@ -124,7 +124,32 @@ export interface ProviderCustomerLinkTable {
   created_at: Date;
 }
 
+export type AccountProduct = "current_account" | "wallet" | "savings";
+export type AccountStatus =
+  "pending" | "active" | "frozen" | "closed" | "unknown";
+
+/** Note the absence of a balance. See 0005_account.sql. */
+export interface AccountTable {
+  id: string;
+  tenant_id: string;
+  customer_id: string;
+  provider_id: string;
+  account_reference: string;
+  product: AccountProduct;
+  currency: string;
+  status: AccountStatus;
+  status_reason: string | null;
+  iban: string | null;
+  account_number: string | null;
+  sort_code: string | null;
+  bic: string | null;
+  opened_at: Date | null;
+  observed_at: Date;
+  created_at: Date;
+}
+
 export interface Database {
+  account: AccountTable;
   customer: CustomerTable;
   provider_customer_link: ProviderCustomerLinkTable;
   idempotency_record: IdempotencyRecordTable;
