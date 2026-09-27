@@ -4,5 +4,6 @@ export * from "./customer-lookup.js";
 export * from "./decorators.js";
 export * from "./guards.js";
 export * from "./principal.js";
+export * from "./route-registry.js";
 export * from "./system.controller.js";
 export * from "./webhook.controller.js";

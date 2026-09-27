@@ -7,17 +7,29 @@ import {
   slugSchema,
   uuidSchema,
 } from "./primitives.js";
+import {
+  accountListSchema,
+  accountSchema,
+  balanceSchema,
+  statementListSchema,
+  statementSchema,
+  transactionPageSchema,
+  transactionSchema,
+} from "./reads.js";
 import { RegistryBuilder } from "./registry.js";
 import type { ContractRegistry } from "./registry.js";
 
 /**
  * The published contract.
  *
- * Only primitives and the error envelope so far. Resource schemas — accounts,
- * beneficiaries, payment orders — arrive with the milestones that build them,
- * because their shape depends on the persistence model (T6) and on design
- * decisions that are still open (O1, O11, O12). Registering a guess now would
- * publish a contract and then break it.
+ * Primitives, the error envelope, and the M1 read surface. Beneficiaries and
+ * payment orders arrive with the milestones that build them — their shape
+ * depends on decisions that are still open (O1, O11, O12), and registering a
+ * guess would publish a contract and then break it.
+ *
+ * Paths are registered alongside their controllers, not ahead of them: a
+ * documented endpoint that does not exist is worse than an undocumented one,
+ * because a client will be written against it.
  */
 export const OPENAPI_TITLE = "baas";
 
@@ -53,5 +65,12 @@ export function buildRegistry(): ContractRegistry {
     .schema("Slug", slugSchema)
     .schema("ErrorResponse", errorResponseSchema)
     .schema("CapabilityReport", capabilityReportSchema)
+    .schema("Account", accountSchema)
+    .schema("AccountList", accountListSchema)
+    .schema("Balance", balanceSchema)
+    .schema("Transaction", transactionSchema)
+    .schema("TransactionPage", transactionPageSchema)
+    .schema("Statement", statementSchema)
+    .schema("StatementList", statementListSchema)
     .build();
 }

@@ -7,6 +7,576 @@
   "paths": {},
   "components": {
     "schemas": {
+      "Account": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "accountReference": {
+            "type": "string",
+            "minLength": 1
+          },
+          "providerId": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$"
+          },
+          "product": {
+            "type": "string",
+            "enum": [
+              "current_account",
+              "wallet",
+              "savings"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "active",
+              "frozen",
+              "closed",
+              "unknown"
+            ]
+          },
+          "statusReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "iban": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "accountNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sortCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bic": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "openedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "balance": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "observed"
+                  },
+                  "available": {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?$"
+                      },
+                      "currency": {
+                        "type": "string",
+                        "enum": [
+                          "AED",
+                          "BHD",
+                          "EGP",
+                          "EUR",
+                          "GBP",
+                          "INR",
+                          "JOD",
+                          "JPY",
+                          "KWD",
+                          "OMR",
+                          "PHP",
+                          "PKR",
+                          "SAR",
+                          "TND",
+                          "USD"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "amount",
+                      "currency"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "current": {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?$"
+                      },
+                      "currency": {
+                        "type": "string",
+                        "enum": [
+                          "AED",
+                          "BHD",
+                          "EGP",
+                          "EUR",
+                          "GBP",
+                          "INR",
+                          "JOD",
+                          "JPY",
+                          "KWD",
+                          "OMR",
+                          "PHP",
+                          "PKR",
+                          "SAR",
+                          "TND",
+                          "USD"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "amount",
+                      "currency"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "observedAt": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                  },
+                  "ageSeconds": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "fresh": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "available",
+                  "current",
+                  "observedAt",
+                  "ageSeconds",
+                  "fresh"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "unavailable"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "never_observed",
+                      "provider_unreachable"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "accountReference",
+          "providerId",
+          "product",
+          "currency",
+          "status",
+          "statusReason",
+          "iban",
+          "accountNumber",
+          "sortCode",
+          "bic",
+          "openedAt",
+          "balance"
+        ],
+        "additionalProperties": false
+      },
+      "AccountList": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "accountReference": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "providerId": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "pattern": "^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$"
+                },
+                "product": {
+                  "type": "string",
+                  "enum": [
+                    "current_account",
+                    "wallet",
+                    "savings"
+                  ]
+                },
+                "currency": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 3
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "active",
+                    "frozen",
+                    "closed",
+                    "unknown"
+                  ]
+                },
+                "statusReason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "iban": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "accountNumber": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "sortCode": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "bic": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "openedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "balance": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "observed"
+                        },
+                        "available": {
+                          "type": "object",
+                          "properties": {
+                            "amount": {
+                              "type": "string",
+                              "pattern": "^-?\\d+(?:\\.\\d+)?$"
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "AED",
+                                "BHD",
+                                "EGP",
+                                "EUR",
+                                "GBP",
+                                "INR",
+                                "JOD",
+                                "JPY",
+                                "KWD",
+                                "OMR",
+                                "PHP",
+                                "PKR",
+                                "SAR",
+                                "TND",
+                                "USD"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "amount",
+                            "currency"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "current": {
+                          "type": "object",
+                          "properties": {
+                            "amount": {
+                              "type": "string",
+                              "pattern": "^-?\\d+(?:\\.\\d+)?$"
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "AED",
+                                "BHD",
+                                "EGP",
+                                "EUR",
+                                "GBP",
+                                "INR",
+                                "JOD",
+                                "JPY",
+                                "KWD",
+                                "OMR",
+                                "PHP",
+                                "PKR",
+                                "SAR",
+                                "TND",
+                                "USD"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "amount",
+                            "currency"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "observedAt": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                        },
+                        "ageSeconds": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "fresh": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "available",
+                        "current",
+                        "observedAt",
+                        "ageSeconds",
+                        "fresh"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "unavailable"
+                        },
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "never_observed",
+                            "provider_unreachable"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "reason"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "accountReference",
+                "providerId",
+                "product",
+                "currency",
+                "status",
+                "statusReason",
+                "iban",
+                "accountNumber",
+                "sortCode",
+                "bic",
+                "openedAt",
+                "balance"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "accounts"
+        ],
+        "additionalProperties": false
+      },
+      "Balance": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "observed"
+              },
+              "available": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "string",
+                    "pattern": "^-?\\d+(?:\\.\\d+)?$"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "enum": [
+                      "AED",
+                      "BHD",
+                      "EGP",
+                      "EUR",
+                      "GBP",
+                      "INR",
+                      "JOD",
+                      "JPY",
+                      "KWD",
+                      "OMR",
+                      "PHP",
+                      "PKR",
+                      "SAR",
+                      "TND",
+                      "USD"
+                    ]
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "additionalProperties": false
+              },
+              "current": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "string",
+                    "pattern": "^-?\\d+(?:\\.\\d+)?$"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "enum": [
+                      "AED",
+                      "BHD",
+                      "EGP",
+                      "EUR",
+                      "GBP",
+                      "INR",
+                      "JOD",
+                      "JPY",
+                      "KWD",
+                      "OMR",
+                      "PHP",
+                      "PKR",
+                      "SAR",
+                      "TND",
+                      "USD"
+                    ]
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "additionalProperties": false
+              },
+              "observedAt": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+              },
+              "ageSeconds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "fresh": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "available",
+              "current",
+              "observedAt",
+              "ageSeconds",
+              "fresh"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "unavailable"
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "never_observed",
+                  "provider_unreachable"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
       "CapabilityReport": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -185,6 +755,285 @@
         "type": "string",
         "maxLength": 64,
         "pattern": "^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$"
+      },
+      "Statement": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "statementReference": {
+            "type": "string",
+            "minLength": 1
+          },
+          "accountReference": {
+            "type": "string",
+            "minLength": 1
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "available": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "statementReference",
+          "accountReference",
+          "from",
+          "to",
+          "available"
+        ],
+        "additionalProperties": false
+      },
+      "StatementList": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "statements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "statementReference": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "accountReference": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "from": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "to": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "available": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "statementReference",
+                "accountReference",
+                "from",
+                "to",
+                "available"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "statements"
+        ],
+        "additionalProperties": false
+      },
+      "Transaction": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "transactionReference": {
+            "type": "string",
+            "minLength": 1
+          },
+          "accountReference": {
+            "type": "string",
+            "minLength": 1
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "debit",
+              "credit"
+            ]
+          },
+          "amount": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "type": "string",
+                "pattern": "^-?\\d+(?:\\.\\d+)?$"
+              },
+              "currency": {
+                "type": "string",
+                "enum": [
+                  "AED",
+                  "BHD",
+                  "EGP",
+                  "EUR",
+                  "GBP",
+                  "INR",
+                  "JOD",
+                  "JPY",
+                  "KWD",
+                  "OMR",
+                  "PHP",
+                  "PKR",
+                  "SAR",
+                  "TND",
+                  "USD"
+                ]
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "additionalProperties": false
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "settled",
+              "rejected",
+              "reversed",
+              "unknown"
+            ]
+          },
+          "counterpartyName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "narrative": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "occurredAt": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          }
+        },
+        "required": [
+          "transactionReference",
+          "accountReference",
+          "direction",
+          "amount",
+          "status",
+          "counterpartyName",
+          "narrative",
+          "occurredAt"
+        ],
+        "additionalProperties": false
+      },
+      "TransactionPage": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "transactionReference": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "accountReference": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "debit",
+                    "credit"
+                  ]
+                },
+                "amount": {
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+(?:\\.\\d+)?$"
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "AED",
+                        "BHD",
+                        "EGP",
+                        "EUR",
+                        "GBP",
+                        "INR",
+                        "JOD",
+                        "JPY",
+                        "KWD",
+                        "OMR",
+                        "PHP",
+                        "PKR",
+                        "SAR",
+                        "TND",
+                        "USD"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "settled",
+                    "rejected",
+                    "reversed",
+                    "unknown"
+                  ]
+                },
+                "counterpartyName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "narrative": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "occurredAt": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                }
+              },
+              "required": [
+                "transactionReference",
+                "accountReference",
+                "direction",
+                "amount",
+                "status",
+                "counterpartyName",
+                "narrative",
+                "occurredAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
       },
       "Uuid": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",

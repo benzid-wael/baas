@@ -90,6 +90,9 @@ importers:
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@24.19.0)
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
 
   apps/e2e:
     devDependencies:
