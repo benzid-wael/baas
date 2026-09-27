@@ -1,3 +1,4 @@
+export * from "./bootstrap.js";
 export * from "./dispatcher.js";
 export * from "./projector.js";
 export * from "./reconciler.js";

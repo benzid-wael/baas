@@ -22,7 +22,8 @@
   "dependencies": {
     "@baas/domain": "workspace:*",
     "@baas/persistence": "workspace:*",
-    "@baas/platform": "workspace:*"
+    "@baas/platform": "workspace:*",
+    "kysely": "^0.27.5"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

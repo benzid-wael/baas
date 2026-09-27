@@ -199,6 +199,9 @@ importers:
       '@baas/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      kysely:
+        specifier: ^0.27.5
+        version: 0.27.6
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

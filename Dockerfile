@@ -17,6 +17,9 @@ COPY packages/domain/package.json       packages/domain/
 COPY packages/platform/package.json     packages/platform/
 COPY packages/contracts/package.json    packages/contracts/
 COPY packages/persistence/package.json  packages/persistence/
+COPY packages/provider-keel/package.json packages/provider-keel/
+COPY packages/provider-ruya/package.json packages/provider-ruya/
+COPY packages/application/package.json  packages/application/
 COPY apps/api/package.json              apps/api/
 COPY apps/worker/package.json           apps/worker/
 COPY apps/provider-sim/package.json     apps/provider-sim/
@@ -27,6 +30,11 @@ COPY tsconfig.base.json tsconfig.json ./
 COPY packages packages
 COPY apps apps
 RUN pnpm run typecheck
+
+# Both entrypoints must exist (New-18). Asserted here rather than discovered at
+# `docker compose up`, which is how the `full` profile came to reference two
+# files that were never built.
+RUN test -f apps/api/dist/main.js && test -f apps/worker/dist/main.js
 
 # A second install, production-only, so the runtime image carries no
 # toolchain and no test harness — notably not the PostgreSQL binaries that

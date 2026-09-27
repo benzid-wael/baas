@@ -64,6 +64,31 @@ export class AccountRepository {
   }
 
   /**
+   * Every account in the tenant, for work that is not on behalf of a customer
+   * — today, the transaction projector (New-18).
+   *
+   * `limit` is required and has no default. A background job that silently
+   * reads the whole table works until the table is large, and then stops
+   * working in a way nobody wrote down. The caller states how much it can
+   * handle in one pass, and `afterId` walks the rest: ids are uuidv7, so id
+   * order is insertion order and the walk is stable under concurrent writes.
+   */
+  async listForTenant(
+    db: ScopedDatabase,
+    page: { readonly limit: number; readonly afterId?: string },
+  ): Promise<readonly AccountRecord[]> {
+    let query = db
+      .selectFrom("account")
+      .selectAll()
+      .orderBy("id")
+      .limit(page.limit);
+    if (page.afterId !== undefined) {
+      query = query.where("id", ">", page.afterId);
+    }
+    return (await query.execute()).map(toRecord);
+  }
+
+  /**
    * Fetch one account **that belongs to this customer**.
    *
    * The customer id is part of the query rather than checked afterwards. A

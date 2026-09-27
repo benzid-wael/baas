@@ -378,7 +378,7 @@ describe("routes and the published contract agree (New-12)", () => {
     // Only one direction here. This module mounts the mobile controller and
     // the registry describes the whole application, so `registeredButUnmounted`
     // is meaningless in a partial fixture. The both-directions check belongs
-    // to the assembled application, which has no entrypoint yet — New-18.
+    // to the assembled application, and is asserted in `application.test.ts`.
     expect(
       compareRoutes(mountedRoutes(app), registeredRoutes(buildRegistry()))
         .mountedButUnregistered,

@@ -378,11 +378,10 @@ describe("routes and the published contract agree", () => {
     const mismatch = compareRoutes(
       mountedRoutes(app),
       registeredRoutes(buildRegistry()),
-      {
-        // The mobile routes are mounted by a different module.
-        ignore: [],
-      },
     );
+    // One direction only: this fixture mounts the operator controller while
+    // the registry describes the whole application. The other direction is
+    // asserted against the assembled application in `application.test.ts`.
     expect(mismatch.mountedButUnregistered).toEqual([]);
   });
 });

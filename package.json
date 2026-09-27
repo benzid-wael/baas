@@ -23,6 +23,8 @@
     "ci": "./scripts/ci/verify.sh",
     "check:config": "tsc --build && node packages/platform/dist/config/check.js",
     "sim": "tsc --build && node apps/provider-sim/dist/main.js",
+    "start:api": "tsc --build && node apps/api/dist/main.js",
+    "start:worker": "tsc --build && node apps/worker/dist/main.js",
     "openapi:generate": "tsc --build && node packages/contracts/dist/cli.js --write openapi.json",
     "check:openapi": "tsc --build && node packages/contracts/dist/cli.js --check openapi.json",
     "test": "vitest run",

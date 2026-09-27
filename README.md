@@ -54,8 +54,14 @@ docker compose --profile full  up -d --build  # the above plus api and worker
 ```
 
 The fast loop runs backing services in containers and `api`/`worker` directly
-on your machine. No source is bind-mounted, because a bind mount resolves on
-the daemon's filesystem rather than yours.
+on your machine (`pnpm start:api`, `pnpm start:worker`). No source is
+bind-mounted, because a bind mount resolves on the daemon's filesystem rather
+than yours.
+
+Both processes are composed in one place each — `apps/api/src/composition.ts`
+and `apps/worker/src/bootstrap.ts` — which are the only files allowed to know
+every concrete type. Neither reads `process.env`: they take a parsed `Config`,
+so there is exactly one reader of the environment in the service.
 
 ## Tests
 

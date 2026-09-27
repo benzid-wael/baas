@@ -1,4 +1,7 @@
+export * from "./api-client-lookup.js";
 export * from "./app.module.js";
+export * from "./bootstrap.js";
+export * from "./composition.js";
 export * from "./assertion.js";
 export * from "./customer-lookup.js";
 export * from "./decorators.js";

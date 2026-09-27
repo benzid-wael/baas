@@ -34,9 +34,19 @@ Then:
 
 ```sh
 pnpm check:config     # validates the manifest before anything starts
-node apps/api/dist/main.js
-node apps/worker/dist/main.js
+pnpm start:api        # builds, then runs apps/api/dist/main.js
+pnpm start:worker     # builds, then runs apps/worker/dist/main.js
 ```
+
+Both processes refuse to start without a `tenant` row matching
+`BOOTSTRAP_TENANT_SLUG`. That is not a convenience check: a service that cannot
+resolve its tenant cannot scope a single query, and starting anyway would mean
+every request discovers the problem separately.
+
+The **API** applies migrations at boot when `DATABASE_MIGRATIONS_RUN=true`. The
+**worker** never does — two processes racing the same migration on a deploy is
+a lock-contention bug that only shows up under load — so start the API first,
+or at least once, before the worker has anything to read.
 
 ### Full loop — everything in Docker
 
@@ -45,7 +55,22 @@ What CI and a pre-deploy smoke run do.
 ```sh
 docker compose --profile full up -d --build
 curl http://$BAAS_HOST:3000/system/health
+curl http://$BAAS_HOST:3000/system/ready
 ```
+
+`/system/ready` is the one worth reading. It asserts the **schema**, not the
+migration ledger: it reports ready only when the tables are the tables the
+code declares, so a half-applied migration fails it (finding C1).
+
+Two things the full loop does **not** do yet:
+
+- **No provider adapter is wired**, so `/system/capabilities` reports an empty
+  provider list and every balance reads as unavailable. Wiring Keel and Ruya
+  from configuration is New-19.
+- **Webhook ingress is not mounted**, so `provider-sim` delivering a callback
+  gets a 404. The controller exists; the signature verifier it needs does not,
+  and inventing a scheme no partner agreed to would be worse than the 404. Also
+  New-19.
 
 ## The tests need none of this
 

@@ -1,4 +1,5 @@
 export * from "./account-repository.js";
+export * from "./api-client-repository.js";
 export * from "./audit-repository.js";
 export * from "./balance-repository.js";
 export * from "./customer-repository.js";
