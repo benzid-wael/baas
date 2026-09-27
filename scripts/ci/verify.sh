@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# The nine gates, in the order they run in CI (RFC-BaaS §10.1).
+# The gates, in the order they run in CI (RFC-BaaS §10.1).
 #
 # This lives in the repository, invoked by a thin Jenkinsfile, because the
 # incumbent's Jenkinsfile is two lines into a shared library and its CI is
@@ -16,15 +16,16 @@ gate() {
   "$@"
 }
 
-gate "1/9 format"          pnpm run format:check
-gate "2/9 lint"            pnpm run lint
-gate "3/9 typecheck"       pnpm run typecheck
-gate "4/9 no \`any\`"       node scripts/check-any.mjs
-gate "5/9 boundaries"      node scripts/check-boundaries.mjs
-gate "6/9 money"           node scripts/check-money.mjs
-gate "7/9 config parity"   node scripts/check-config-parity.mjs
-gate "8/9 openapi"         pnpm run check:openapi
-gate "9/9 secrets"         node scripts/check-secrets.mjs
+gate "1/10 format"          pnpm run format:check
+gate "2/10 lint"            pnpm run lint
+gate "3/10 typecheck"       pnpm run typecheck
+gate "4/10 no \`any\`"       node scripts/check-any.mjs
+gate "5/10 boundaries"      node scripts/check-boundaries.mjs
+gate "6/10 money"           node scripts/check-money.mjs
+gate "7/10 config parity"  node scripts/check-config-parity.mjs
+gate "8/10 tenant scope"   node scripts/check-tenant-scope.mjs
+gate "9/10 openapi"        pnpm run check:openapi
+gate "10/10 secrets"       node scripts/check-secrets.mjs
 
 printf '\n\033[1m── tests (schema drift, migration rollback and coverage included)\033[0m\n'
 pnpm run test:coverage

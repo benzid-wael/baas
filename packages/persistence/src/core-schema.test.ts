@@ -5,6 +5,7 @@ import { uuidv7 } from "uuidv7";
 import { parseInstant, toJsDate } from "@baas/platform";
 import { startDatabase } from "./harness.js";
 import { assertSchemaMatches, compareSchema } from "./introspect.js";
+import { loadMigrations } from "./migrator.js";
 import type { DatabaseHarness } from "./harness.js";
 
 /**
@@ -17,10 +18,10 @@ import type { DatabaseHarness } from "./harness.js";
  */
 let harness: DatabaseHarness;
 
+const MIGRATIONS_DIR = join(import.meta.dirname, "..", "migrations");
+
 beforeAll(async () => {
-  harness = await startDatabase({
-    migrationsDir: join(import.meta.dirname, "..", "migrations"),
-  });
+  harness = await startDatabase({ migrationsDir: MIGRATIONS_DIR });
 }, 120_000);
 
 afterAll(async () => {
@@ -38,23 +39,24 @@ describe("migrations", () => {
       .selectFrom("schema_migration")
       .selectAll()
       .execute();
-    expect(rows.map((row) => row.id)).toEqual([
-      "0001_core.sql",
-      "0002_outbox.sql",
-    ]);
+    // Derived, not listed: a hardcoded list makes every new migration break
+    // two unrelated tests, which teaches people to edit assertions reflexively.
+    expect(rows.map((row) => row.id)).toEqual(
+      loadMigrations(MIGRATIONS_DIR).map((migration) => migration.id),
+    );
     expect(rows[0]?.applied_at).toBeInstanceOf(Date);
   });
 
   it("is idempotent — a second run applies nothing", async () => {
     const second = await startDatabase({
-      migrationsDir: join(import.meta.dirname, "..", "migrations"),
+      migrationsDir: MIGRATIONS_DIR,
       databaseUrl: harness.url,
     });
     const rows = await second.db
       .selectFrom("schema_migration")
       .selectAll()
       .execute();
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(loadMigrations(MIGRATIONS_DIR).length);
     await second.stop();
   });
 });

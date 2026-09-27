@@ -43,6 +43,20 @@ apps/
 Everything else in the RFC's layout arrives with its task. The workspace is
 built one package at a time, and each arrives with its gate already passing.
 
+## Docker
+
+The daemon is **not assumed to be local** — `DOCKER_HOST` may point at a
+devserver. See [`docs/docker.md`](docs/docker.md). Two loops:
+
+```sh
+docker compose --profile infra up -d          # postgres, redis, blnk, sim
+docker compose --profile full  up -d --build  # the above plus api and worker
+```
+
+The fast loop runs backing services in containers and `api`/`worker` directly
+on your machine. No source is bind-mounted, because a bind mount resolves on
+the daemon's filesystem rather than yours.
+
 ## Tests
 
 There is no way to run the suite without a database, and that is deliberate.
@@ -50,6 +64,9 @@ There is no way to run the suite without a database, and that is deliberate.
 socket and no Docker, so `pnpm test` works on a laptop that has never
 installed it. No persistence test is skippable: the incumbent has 521 skipped
 tests and that is the layer where its real defects lived.
+
+None of this needs Docker — see above; the suite starts its own PostgreSQL.
+Set `DATABASE_URL` to use a containerised one instead.
 
 `apps/e2e/src/spine.test.ts` is the one to read first. It asserts the whole
 spine in one test — enqueue, dispatch, a signed webhook, a row in

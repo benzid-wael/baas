@@ -1,0 +1,153 @@
+# Local and remote-daemon development.
+#
+# The Docker daemon is not assumed to be on your machine: `DOCKER_HOST` may
+# point at a devserver. Two consequences shape this file.
+#
+#   1. **No source bind mounts.** A bind mount resolves on the *daemon's*
+#      filesystem, so mounting ./packages would mount whatever happens to be
+#      at that path on the devserver — usually nothing. Application services
+#      build an image instead. Editing code means rebuilding that service.
+#
+#   2. **Nothing assumes localhost.** Published ports appear on the daemon's
+#      host, not yours. `BAAS_HOST` is where *you* reach them: 127.0.0.1 with a
+#      local daemon, the devserver's address otherwise. Set it in `.env`, which
+#      compose reads automatically.
+#
+# Two profiles, because the common case is not "all of it":
+#
+#   infra  postgres, redis, blnk, provider-sim
+#          Run these in Docker and the api/worker directly on your machine.
+#          This is the fast loop: `pnpm dev` against containerised backing
+#          services.
+#
+#   full   the above plus api and worker as built images.
+#          This is what CI and a pre-deploy smoke run.
+#
+#   docker compose --profile infra up -d
+#   docker compose --profile full  up -d --build
+#
+# Note the tests need none of this: the suite starts its own PostgreSQL.
+
+name: baas
+
+x-app-env: &app-env
+  APP_ENV: ${APP_ENV:-dev}
+  LOG_LEVEL: ${LOG_LEVEL:-debug}
+  DATABASE_HOST: postgres
+  DATABASE_PORT: "5432"
+  DATABASE_USER: ${DATABASE_USER:-baas}
+  DATABASE_PASSWORD: ${DATABASE_PASSWORD:-changeme-local-development-only}
+  DATABASE_NAME: ${DATABASE_NAME:-baas}
+  DATABASE_SSL: "false"
+  DATABASE_MIGRATIONS_RUN: "true"
+  THROTTLE_STORAGE: redis
+  REDIS_URL: redis://redis:6379
+  OPENAPI_ENABLED: "true"
+  # Defaults to the throwaway public key from .env.example. A public key is
+  # not a secret, and requiring one here would mean the infra loop could not
+  # start without setup.
+  MOBILE_ASSERTION_PUBLIC_KEY: ${MOBILE_ASSERTION_PUBLIC_KEY:-LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFcWhUS1BnWVpjWUQ3Vys1WXdTZXFXb1U1cHZQWQpOelVtY3poL0tqT3FDL2orSEJKY3AxTUFKbWNMOWw3OWM2V01QWmI4VnhQa1BCU1gwYXN2ZE5ZWmhnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==}
+  MOBILE_ASSERTION_ISSUER: ${MOBILE_ASSERTION_ISSUER:-https://bff.local.superchat.internal}
+  MOBILE_ASSERTION_AUDIENCE: ${MOBILE_ASSERTION_AUDIENCE:-baas}
+  PROVIDER_CREDENTIAL_ENCRYPTION_KEY: ${PROVIDER_CREDENTIAL_ENCRYPTION_KEY:-changeme-placeholder-key-32-chars!}
+  CALLBACK_HMAC_SECRET: ${CALLBACK_HMAC_SECRET:-changeme-placeholder-hmac-32-char}
+  BOOTSTRAP_TENANT_SLUG: ${BOOTSTRAP_TENANT_SLUG:-superchat}
+  PROVIDERS: ${PROVIDERS:-}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    profiles: [infra, full]
+    environment:
+      POSTGRES_USER: ${DATABASE_USER:-baas}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-changeme-local-development-only}
+      POSTGRES_DB: ${DATABASE_NAME:-baas}
+    ports:
+      # Published on the daemon host. Reach it at ${BAAS_HOST}:${POSTGRES_PORT}.
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DATABASE_USER:-baas} -d ${DATABASE_NAME:-baas}",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    profiles: [infra, full]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # The ledger. Kept because it works and is reconciled (decision D4); reached
+  # only through the Ledger context, so replacing it later touches one package.
+  blnk:
+    image: jerryenebeli/blnk:0.10.2
+    profiles: [infra, full]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+    environment:
+      BLNK_DATA_SOURCE_DNS: postgres://${DATABASE_USER:-baas}:${DATABASE_PASSWORD:-changeme-local-development-only}@postgres:5432/${DATABASE_NAME:-baas}?sslmode=disable
+      BLNK_REDIS_DNS: redis:6379
+    ports:
+      - "${BLNK_PORT:-5001}:5001"
+
+  # The partner simulator. Development and CI only — it signs webhooks with a
+  # key it can generate itself, so anywhere reachable from a deployed
+  # environment it is an unauthenticated provider-event injector.
+  provider-sim:
+    profiles: [infra, full]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node", "apps/provider-sim/dist/main.js"]
+    environment:
+      APP_ENV: dev
+      PORT: "4010"
+      # Delivered to the api service by its compose name, so this works
+      # whether the daemon is local or remote.
+      SIM_KEEL_WEBHOOK_URL: http://api:3000/webhooks/keel
+      SIM_RUYA_WEBHOOK_URL: http://api:3000/webhooks/ruya
+    ports:
+      - "${SIM_PORT:-4010}:4010"
+
+  api:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node", "apps/api/dist/main.js"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+    environment:
+      <<: *app-env
+      PORT: "3000"
+    ports:
+      - "${API_PORT:-3000}:3000"
+
+  worker:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node", "apps/worker/dist/main.js"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+    environment:
+      <<: *app-env
+
+volumes:
+  postgres-data:

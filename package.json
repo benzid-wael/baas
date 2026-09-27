@@ -19,6 +19,7 @@
     "check:money": "node scripts/check-money.mjs",
     "check:config-parity": "node scripts/check-config-parity.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
+    "check:tenant-scope": "node scripts/check-tenant-scope.mjs",
     "ci": "./scripts/ci/verify.sh",
     "check:config": "tsc --build && node packages/platform/dist/config/check.js",
     "sim": "tsc --build && node apps/provider-sim/dist/main.js",
