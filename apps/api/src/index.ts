@@ -1,5 +1,6 @@
 export * from "./app.module.js";
 export * from "./assertion.js";
+export * from "./customer-lookup.js";
 export * from "./decorators.js";
 export * from "./guards.js";
 export * from "./principal.js";

@@ -101,7 +101,32 @@ export interface ProviderInboxTable {
   process_error: string | null;
 }
 
+export interface CustomerTable {
+  id: string;
+  tenant_id: string;
+  external_user_uuid: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export type ProviderLinkStatus =
+  "pending" | "active" | "blocked" | "offboarded" | "unknown";
+
+export interface ProviderCustomerLinkTable {
+  id: string;
+  tenant_id: string;
+  customer_id: string;
+  provider_id: string;
+  external_customer_id: string;
+  status: ProviderLinkStatus;
+  status_reason: string | null;
+  observed_at: Date;
+  created_at: Date;
+}
+
 export interface Database {
+  customer: CustomerTable;
+  provider_customer_link: ProviderCustomerLinkTable;
   idempotency_record: IdempotencyRecordTable;
   effect_outbox: EffectOutboxTable;
   provider_inbox: ProviderInboxTable;

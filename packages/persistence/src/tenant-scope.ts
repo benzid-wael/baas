@@ -58,6 +58,35 @@ export class TenantScope {
   }
 
   /**
+   * Run `work` with the tenant context established **and** provider-sync
+   * writes permitted.
+   *
+   * `provider_customer_link` is derived from what a provider told us, and a
+   * trigger refuses to write it unless `app.provider_sync` is set. The
+   * incumbent lets an operator edit link status directly, and the edit is
+   * silently reverted on the next sync (finding D4) — which is worse than
+   * being refused, because it looks like it worked.
+   *
+   * Separate and named so that the one code path allowed to write derived
+   * state says so, and so that everything else structurally cannot.
+   */
+  async runAsProviderSync<T>(
+    tenantId: string,
+    work: (db: ScopedDatabase) => Promise<T>,
+  ): Promise<T> {
+    return this.db.transaction().execute(async (trx) => {
+      await sql`SET LOCAL ROLE ${sql.raw(APPLICATION_ROLE)}`.execute(trx);
+      await sql`SELECT set_config('app.tenant_id', ${tenantId}, true)`.execute(
+        trx,
+      );
+      await sql`SELECT set_config('app.provider_sync', 'on', true)`.execute(
+        trx,
+      );
+      return work(trx as ScopedDatabase);
+    });
+  }
+
+  /**
    * Read a registry table — `tenant`, `api_client`, `api_client_scope` —
    * which by definition cannot be tenant-scoped, because reading it is how the
    * tenant is established.

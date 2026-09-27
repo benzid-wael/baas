@@ -133,9 +133,20 @@ async function connectAndMigrate(
   url: string,
   migrationsDir: string,
 ): Promise<Kysely<Database>> {
-  const db = new Kysely<Database>({
-    dialect: new PostgresDialect({ pool: new Pool({ connectionString: url }) }),
+  const pool = new Pool({ connectionString: url });
+
+  // Without this, stopping the server while an idle client is still pooled
+  // surfaces PostgreSQL's 57P01 ("terminating connection due to administrator
+  // command") as an *unhandled* rejection, which fails the run for a reason
+  // that has nothing to do with any test. A pool always needs an error
+  // listener; teardown is simply when its absence shows.
+  pool.on("error", () => {
+    // Deliberately ignored: a connection error outside a query is either
+    // teardown or a reconnect the pool handles itself. A query error still
+    // rejects its own promise.
   });
+
+  const db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });
   // Kysely's schema generic is invariant, so a wider `Database` is not
   // assignable to the narrower shape the migrator needs. The narrowing is
   // explicit and lives at this one seam rather than being smeared through the
