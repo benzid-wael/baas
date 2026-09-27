@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { APP_GUARD, Reflector } from "@nestjs/core";
+import { APP_FILTER, APP_GUARD, Reflector } from "@nestjs/core";
 import type { DynamicModule } from "@nestjs/common";
 import type { Logger } from "@baas/platform";
 import {
@@ -44,6 +44,7 @@ import {
   WEBHOOK_VERIFIER,
   WebhookController,
 } from "./webhook.controller.js";
+import { WebhookBodyFilter } from "./webhook-body.filter.js";
 
 /** Inbound provider callbacks. Supplied by the composition root. */
 export interface WebhookIngress {
@@ -136,6 +137,19 @@ export class AppModule {
           : [
               { provide: WEBHOOK_INBOX, useValue: webhooks.inbox },
               { provide: WEBHOOK_VERIFIER, useValue: webhooks.verifier },
+              // Global because the body parser throws before routing, so a
+              // controller-scoped filter never runs. It narrows itself to
+              // `POST /webhooks/:provider` and passes everything else through
+              // unchanged. See New-22.
+              {
+                provide: APP_FILTER,
+                useFactory: () =>
+                  new WebhookBodyFilter(
+                    webhooks.inbox,
+                    webhooks.verifier,
+                    deps.logger,
+                  ),
+              },
             ]),
         {
           provide: APP_GUARD,

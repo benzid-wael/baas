@@ -34,6 +34,10 @@ export async function buildApiApplication(
     AppModule.withDependencies(graph.dependencies),
     {
       logger: false,
+      // Nest's default is to `process.abort()` on an initialisation failure,
+      // which produces a native stack trace and **no message**. Rejecting
+      // instead lets `main.ts` log what actually went wrong before exiting.
+      abortOnError: false,
     },
   );
 

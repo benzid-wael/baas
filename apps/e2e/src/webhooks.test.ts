@@ -3,7 +3,7 @@ import "reflect-metadata";
 import { createHmac, generateKeyPairSync } from "node:crypto";
 import { join } from "node:path";
 import { Module } from "@nestjs/common";
-import { NestFactory } from "@nestjs/core";
+import { APP_FILTER, NestFactory } from "@nestjs/core";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { uuidv7 } from "uuidv7";
@@ -20,7 +20,12 @@ import { startDatabase } from "@baas/persistence/testing";
 import type { DatabaseHarness } from "@baas/persistence/testing";
 import { signKeel, signRuya } from "@baas/provider-sim";
 import { buildWebhookVerifier } from "@baas/provider-registry";
-import { WEBHOOK_INBOX, WEBHOOK_VERIFIER, WebhookController } from "@baas/api";
+import {
+  WEBHOOK_INBOX,
+  WEBHOOK_VERIFIER,
+  WebhookBodyFilter,
+  WebhookController,
+} from "@baas/api";
 
 /**
  * Inbound provider callbacks (New-21).
@@ -133,6 +138,10 @@ beforeAll(async () => {
     providers: [
       { provide: WEBHOOK_INBOX, useValue: inbox },
       { provide: WEBHOOK_VERIFIER, useValue: verifier },
+      {
+        provide: APP_FILTER,
+        useFactory: () => new WebhookBodyFilter(inbox, verifier, logger),
+      },
     ],
   })
   class WebhookModule {}
@@ -353,22 +362,84 @@ describe("the raw bytes, not a re-serialisation", () => {
     });
   });
 
-  it("cannot yet record a delivery whose body is not JSON (New-22)", async () => {
-    // Documenting the gap rather than pretending it is not there. The global
-    // JSON parser answers 400 before the route runs, so a partner sending
-    // malformed JSON leaves no inbox row -- and the 400 echoes the body back.
-    // Both are wrong for a webhook endpoint and both are New-22.
-    const before = (await deliveries()).length;
+  it("records a delivery whose body is not JSON, and still answers 202 (New-22)", async () => {
+    // The global parser rejects this before routing, so the controller never
+    // sees it. Without the filter the delivery vanished entirely -- which is
+    // the opposite of "record, do not process".
     const body = "this is not json";
     const response = await request(server())
       .post("/webhooks/keel")
       .set({
         "content-type": "application/json",
         "x-digital-signature": signKeel(body, KEEL_KEY),
+        "x-webhook-notification-id": "malformed-1",
       })
       .send(body);
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(202);
+    expect(response.body).toEqual({ received: true });
+
+    const row = await harness.db
+      .selectFrom("provider_inbox")
+      .select(["payload", "signature_verified", "external_event_id"])
+      .orderBy("id", "desc")
+      .executeTakeFirstOrThrow();
+    // Signed correctly over those bytes, so verified -- verification only ever
+    // looked at the bytes, and saying otherwise would be wrong.
+    expect(row.signature_verified).toBe(true);
+    expect(row.external_event_id).toBe("malformed-1");
+    expect(row.payload).toEqual({ unparseable: body });
+  });
+
+  it("says nothing about the body it could not parse", async () => {
+    // The parser's own message quotes the input back:
+    //   Unexpected token 't', "..." is not valid JSON
+    // An unverified caller must not get a fragment of its own request
+    // reflected, and a partner's malformed payload must not reach an error
+    // response or the logs that carry one.
+    const secret = "AE070331234567890123456";
+    const response = await request(server())
+      .post("/webhooks/ruya")
+      .set({ "content-type": "application/json" })
+      .send(`{"iban": "${secret}"`);
+
+    expect(response.status).toBe(202);
+    expect(JSON.stringify(response.body)).not.toContain(secret);
+    expect(JSON.stringify(response.body)).not.toMatch(/token|JSON|parse/i);
+  });
+
+  it("records an unparseable body as unverified when the signature is wrong", async () => {
+    await request(server())
+      .post("/webhooks/ruya")
+      .set({
+        "content-type": "application/json",
+        "x-ruya-callback-signature": signRuya("something else", RUYA_SECRET),
+      })
+      .send("{ broken");
+    expect((await deliveries()).at(-1)).toMatchObject({
+      provider_id: "ruya",
+      signature_verified: false,
+    });
+  });
+
+  it("leaves a malformed body for an unserved provider unrecorded", async () => {
+    const before = (await deliveries()).length;
+    const response = await request(server())
+      .post("/webhooks/someone-else")
+      .set({ "content-type": "application/json" })
+      .send("{ broken");
+    expect(response.status).toBe(202);
     expect((await deliveries()).length).toBe(before);
+  });
+
+  it("does not change what a malformed body does anywhere else", async () => {
+    // The filter is global because the parser throws before routing. It must
+    // therefore be invisible to every other route -- this is the assertion
+    // that it is.
+    const response = await request(server())
+      .post("/not-a-webhook")
+      .set({ "content-type": "application/json" })
+      .send("{ broken");
+    expect(response.status).toBe(400);
   });
 });

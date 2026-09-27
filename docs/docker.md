@@ -106,6 +106,11 @@ Four behaviours worth knowing before you debug one:
 - **A provider this deployment holds no credentials for is answered 202 and
   recorded nowhere.** Telling a caller which provider ids exist is free
   reconnaissance.
+- **A body that is not valid JSON is recorded too**, as
+  `{"unparseable": "<the bytes>"}`, and answered 202 like everything else. The
+  response says nothing about the body — the JSON parser's own message quotes
+  the input back, and an unverified caller must not get a fragment of its
+  request reflected.
 
 The signature is over the **exact bytes** the partner sent, which is why the
 application is created with `rawBody: true`. Anything in front of it that

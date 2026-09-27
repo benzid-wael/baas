@@ -240,6 +240,19 @@ describe("the assembled application", () => {
     expect(response.status).toBe(202);
   });
 
+  it("records a malformed callback rather than 400-ing it (New-22)", async () => {
+    // This deployment configures no provider, so nothing is recorded -- what
+    // is asserted is that the filter is registered by the composition root
+    // and not only by the webhook test's own module. Without it this is a 400
+    // that quotes the body back. The recording behaviour itself is asserted in
+    // `webhooks.test.ts`, where providers are configured.
+    const response = await request(server())
+      .post("/webhooks/keel")
+      .set({ "content-type": "application/json" })
+      .send("{ not json");
+    expect(response.status).toBe(202);
+  });
+
   it("serves health without a credential", async () => {
     const response = await request(server()).get("/system/health");
     expect(response.status).toBe(200);
