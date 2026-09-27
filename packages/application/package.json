@@ -29,6 +29,7 @@
     "typescript": "^5.7.2",
     "vitest": "^2.1.8",
     "kysely": "^0.27.5",
-    "uuidv7": "^1.0.2"
+    "uuidv7": "^1.0.2",
+    "@baas/contracts": "workspace:*"
   }
 }

@@ -162,6 +162,16 @@ function compareObjectSchema(
   // A schema can be a bare enum or a constrained scalar with no properties at
   // all, so the top level is compared too.
   compareConstraints(where, before, after, changes);
+
+  // And descend into array items. Without this, a narrowed enum or a changed
+  // pattern **inside a list** is invisible — which it was, until a capability
+  // report's `operations: string[]` changed its pattern and the detector
+  // reported the document merely stale.
+  const previousItems = asRecord(before)["items"];
+  const nextItems = asRecord(after)["items"];
+  if (previousItems !== undefined && nextItems !== undefined) {
+    compareObjectSchema(`${where}[]`, previousItems, nextItems, changes);
+  }
 }
 
 /**

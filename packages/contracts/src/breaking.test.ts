@@ -87,6 +87,28 @@ describe("changes that break a client", () => {
     ]);
   });
 
+  it("finds a break inside array items", () => {
+    // Without descending into `items`, a narrowed enum or a changed pattern
+    // inside a list is invisible. This was a real gap: a capability report's
+    // operations list changed its pattern and the detector reported the
+    // document merely stale.
+    const before = {
+      type: "object",
+      properties: {
+        tags: { type: "array", items: { type: "string", enum: ["a", "b"] } },
+      },
+    };
+    const after = {
+      type: "object",
+      properties: {
+        tags: { type: "array", items: { type: "string", enum: ["a"] } },
+      },
+    };
+    const changes = findBreakingChanges(doc({ A: before }), doc({ A: after }));
+    expect(changes[0]?.path).toBe("schemas.A.tags[]");
+    expect(changes[0]?.reason).toContain('enum removed "b"');
+  });
+
   it("finds a break nested inside a property", () => {
     const nested = {
       type: "object",

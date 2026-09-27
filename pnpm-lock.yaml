@@ -216,6 +216,9 @@ importers:
         specifier: workspace:*
         version: link:../platform
     devDependencies:
+      '@baas/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.0

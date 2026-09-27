@@ -16,6 +16,7 @@ import {
   transactionPageSchema,
   transactionSchema,
 } from "./reads.js";
+import { operationIdSchema } from "./primitives.js";
 import { RegistryBuilder } from "./registry.js";
 import type { ContractRegistry } from "./registry.js";
 
@@ -37,7 +38,7 @@ export const OPENAPI_TITLE = "baas";
  * Bumped by hand when a breaking change is intended. `pnpm check:openapi`
  * refuses a breaking change that leaves this alone.
  */
-export const OPENAPI_VERSION = "0.1.0";
+export const OPENAPI_VERSION = "0.2.0";
 
 /** Reported by `/system/capabilities`: what is on, and why (RFC-BaaS §5.5). */
 export const capabilityReportSchema = z.object({
@@ -50,7 +51,7 @@ export const capabilityReportSchema = z.object({
       available: z.boolean(),
       /** Machine-readable, so routing and the portal agree (finding A1). */
       reason: z.string().optional(),
-      operations: z.array(slugSchema),
+      operations: z.array(operationIdSchema),
     }),
   ),
   checkedAt: instantSchema,

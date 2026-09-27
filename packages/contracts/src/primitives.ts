@@ -96,6 +96,19 @@ export const slugSchema = z
  * opaque by contract: clients pass back what they were given and may not
  * construct one.
  */
+/**
+ * An operation id: dotted segments, each a slug — `account.read`,
+ * `payout.uk_domestic`. Matches the domain's `operationId` rule, which a plain
+ * slug does not: a slug has no dots, and capability reports are full of them.
+ */
+export const operationIdSchema = z
+  .string()
+  .regex(
+    /^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*)+$/,
+    "must be a dotted operation id, e.g. account.read",
+  )
+  .max(64);
+
 export const cursorSchema = z.string().min(1).max(4096);
 
 export function pageOf<T extends z.ZodType>(item: T) {

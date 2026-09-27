@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "baas",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "paths": {
     "/mobile/accounts": {
@@ -706,7 +706,7 @@
                   "items": {
                     "type": "string",
                     "maxLength": 64,
-                    "pattern": "^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$"
+                    "pattern": "^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*(?:\\.[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*)+$"
                   }
                 }
               },
