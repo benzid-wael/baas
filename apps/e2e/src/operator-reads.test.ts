@@ -30,11 +30,12 @@ import {
 } from "@baas/persistence";
 import { startDatabase } from "@baas/persistence/testing";
 import type { DatabaseHarness } from "@baas/persistence/testing";
-import { OperatorReads, ReadBalance } from "@baas/application";
+import { OperatorReads, ReadBalance, SystemReads } from "@baas/application";
 import { buildRegistry } from "@baas/contracts";
 import {
   AuthorizationPolicyGuard,
   OPERATOR_READS,
+  SYSTEM_READS,
   OperatorSessionGuard,
   PlatformReadController,
   RolesGuard,
@@ -165,6 +166,7 @@ beforeAll(async () => {
     controllers: [PlatformReadController],
     providers: [
       { provide: OPERATOR_READS, useValue: reads },
+      { provide: SYSTEM_READS, useValue: new SystemReads(scope, clock) },
       {
         provide: APP_GUARD,
         inject: [Reflector],
@@ -185,7 +187,12 @@ beforeAll(async () => {
   })
   class PlatformModule {}
 
-  app = await NestFactory.create(PlatformModule, { logger: false });
+  app = await NestFactory.create(PlatformModule, {
+    logger: false,
+    // Nest aborts the process on an init failure and prints no message at
+    // all. Rejecting instead means the next missing provider says so.
+    abortOnError: false,
+  });
   await app.init();
 
   const operator = await scope.run(TENANT, (db) =>

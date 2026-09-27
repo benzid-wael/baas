@@ -158,7 +158,12 @@ beforeAll(async () => {
   })
   class OperatorModule {}
 
-  app = await NestFactory.create(OperatorModule, { logger: false });
+  app = await NestFactory.create(OperatorModule, {
+    logger: false,
+    // Nest aborts the process on an init failure and prints no message at
+    // all. Rejecting instead means the next missing provider says so.
+    abortOnError: false,
+  });
   await app.init();
 }, 180_000);
 

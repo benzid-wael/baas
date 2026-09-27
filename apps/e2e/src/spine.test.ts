@@ -145,6 +145,7 @@ beforeAll(async () => {
   app = await NestFactory.create(WebhookModule, {
     logger: false,
     rawBody: true,
+    abortOnError: false,
   });
   await app.init();
 }, 120_000);

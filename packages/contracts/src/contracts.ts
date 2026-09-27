@@ -141,6 +141,16 @@ export function buildRegistry(): ContractRegistry {
         },
       },
     })
+    .path("/platform/system", {
+      get: {
+        operationId: "systemState",
+        summary:
+          "Migrations, schema drift, and outbox and inbox depths. Not audited: it carries no personal data and a dashboard polls.",
+        responses: {
+          "200": { description: "The system's state" },
+        },
+      },
+    })
     .path("/platform/provider-requests", {
       get: {
         operationId: "listProviderRequests",

@@ -25,6 +25,7 @@ import {
 import {
   OPERATOR_READS,
   PlatformReadController,
+  SYSTEM_READS,
 } from "./platform.controller.js";
 import {
   OPERATOR_SESSIONS,
@@ -36,6 +37,7 @@ import type {
   OperatorReads,
   ReadAccounts,
   ReadTransactions,
+  SystemReads,
 } from "@baas/application";
 import type { Inbox } from "@baas/persistence";
 import type { WebhookVerifier } from "@baas/domain";
@@ -57,6 +59,7 @@ export interface ReadSurfaces {
   readonly accounts: ReadAccounts;
   readonly transactions: ReadTransactions;
   readonly operator: OperatorReads;
+  readonly system: SystemReads;
 }
 
 export interface ApiDependencies {
@@ -128,6 +131,7 @@ export class AppModule {
               { provide: READ_ACCOUNTS, useValue: reads.accounts },
               { provide: READ_TRANSACTIONS, useValue: reads.transactions },
               { provide: OPERATOR_READS, useValue: reads.operator },
+              { provide: SYSTEM_READS, useValue: reads.system },
             ]),
         ...(sessions === undefined
           ? []

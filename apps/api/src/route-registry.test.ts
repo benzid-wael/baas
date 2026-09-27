@@ -155,6 +155,7 @@ describe("the published registry", () => {
       "/platform/customers/{customerId}/accounts",
       "/platform/provider-requests",
       "/platform/provider-requests/{id}",
+      "/platform/system",
     ]);
   });
 

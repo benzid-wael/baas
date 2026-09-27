@@ -21,6 +21,7 @@ import {
   ReadAccounts,
   ReadBalance,
   ReadTransactions,
+  SystemReads,
 } from "@baas/application";
 import type { ProviderAdapter, ProviderDeployment } from "@baas/application";
 import {
@@ -138,6 +139,7 @@ export function composeApi(options: ComposeApiOptions): ApiGraph {
           audit,
           new ProviderRequestLogRepository(),
         ),
+        system: new SystemReads(scope, clock),
       },
       webhooks: {
         inbox: new Inbox(db, clock, ids),

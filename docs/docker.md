@@ -81,6 +81,27 @@ Four reasons, and they mean different things to different people:
 The first two are the pair worth keeping apart: one is a job for whoever holds
 the credentials, the other for whoever ships the code.
 
+### What an operator can see
+
+`GET /platform/system` answers the questions that otherwise need a `psql`
+prompt during an incident:
+
+- **Migrations** — which applied, and when the last one did.
+- **Schema drift** — whether the migrated database is what the code declares,
+  and _which columns_ disagree if not. The readiness probe already fails on
+  drift; this says what drifted.
+- **Outbox depth** — a count and an oldest-age per state, plus `unresolved`,
+  which counts `pending`, `dispatched` and `unknown` together. **A growing
+  `unresolved` is the most important number here**: it means we do not know
+  whether a provider acted.
+- **Inbox** — unprocessed deliveries, the age of the oldest, and how many
+  failed their signature check. A non-zero rejected count is worth a look; a
+  climbing one is worth an alarm.
+
+It is **not audited**, unlike the customer reads beside it. It carries counts,
+states and migration ids — no personal data — and a dashboard polls, so a row
+every few seconds would bury the audit trail that exists to be read.
+
 ### The provider request log
 
 Every provider call — request, response, status, duration, outcome — is written

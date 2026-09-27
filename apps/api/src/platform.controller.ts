@@ -10,7 +10,11 @@ import {
 } from "@nestjs/common";
 import { fromMoney } from "@baas/contracts";
 import type { AccountWire, TransactionWire } from "@baas/contracts";
-import type { OperatorAccountView, OperatorReads } from "@baas/application";
+import type {
+  OperatorAccountView,
+  OperatorReads,
+  SystemReads,
+} from "@baas/application";
 import type { ProjectedTransaction, RecordedCall } from "@baas/persistence";
 import { formatInstant, fromJsDate } from "@baas/platform";
 import { OperatorSurface, Roles } from "./decorators.js";
@@ -19,6 +23,7 @@ import { principalOf } from "./principal.js";
 import type { RequestWithPrincipal } from "./principal.js";
 
 export const OPERATOR_READS = "baas:OperatorReads";
+export const SYSTEM_READS = "baas:SystemReads";
 
 const MAX_PAGE = 200;
 const DEFAULT_PAGE = 50;
@@ -33,7 +38,32 @@ const DEFAULT_PAGE = 50;
  */
 @Controller("platform")
 export class PlatformReadController {
-  constructor(@Inject(OPERATOR_READS) private readonly reads: OperatorReads) {}
+  constructor(
+    @Inject(OPERATOR_READS) private readonly reads: OperatorReads,
+    @Inject(SYSTEM_READS) private readonly system: SystemReads,
+  ) {}
+
+  /**
+   * Everything an operator currently opens a `psql` prompt for (MP-5).
+   *
+   * Which migrations applied, whether the declared schema matches the migrated
+   * one, how deep the outbox is and how old its oldest unresolved effect is,
+   * and how many inbox deliveries are unprocessed or failed their signature.
+   *
+   * **Not audited**, unlike every other route on this controller. It carries
+   * counts, states and migration ids — no customer, no account, no personal
+   * data — and a dashboard polls. Auditing it would write a row every few
+   * seconds and bury the trail that exists to be read. The rule is "reading a
+   * customer is audited", not "reading anything is audited": the first is a
+   * control, the second is noise that hides one.
+   */
+  @Get("system")
+  @OperatorSurface()
+  @Roles("operator", "admin")
+  async systemState(@Req() request: RequestWithPrincipal): Promise<unknown> {
+    const { tenantId } = operator(request);
+    return this.system.state(tenantId);
+  }
 
   /**
    * Find a customer by **one** exact identifier.
