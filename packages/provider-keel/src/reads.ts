@@ -97,6 +97,8 @@ export class KeelReads implements AccountReadPort, TransactionReadPort {
     try {
       return await this.http.get<KeelAccountSummary>(
         `${ACCOUNTS}/${encodeURIComponent(accountReference)}`,
+        // The reference goes in the path, so the log records the route.
+        { operation: `GET ${ACCOUNTS}/{accountReference}` },
       );
     } catch (error) {
       if (error instanceof KeelApiError && error.status === 404) {

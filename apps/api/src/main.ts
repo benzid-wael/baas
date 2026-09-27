@@ -13,7 +13,13 @@ import {
   createLogger,
   loadConfig,
 } from "@baas/platform";
-import { createDatabase, loadMigrations, migrateUp } from "@baas/persistence";
+import {
+  TenantScope,
+  TenantScopedCallRecorder,
+  createDatabase,
+  loadMigrations,
+  migrateUp,
+} from "@baas/persistence";
 import type { Database, MigratableDatabase } from "@baas/persistence";
 import type { Kysely } from "kysely";
 import { join } from "node:path";
@@ -78,9 +84,20 @@ async function start(): Promise<void> {
   // in stage and production: a declared provider that cannot be built there is
   // a deployment that would run silently inert (finding A8), and discovering
   // that from a customer is worse than failing the deploy.
+  // The recorder is built here rather than inside the composition root
+  // because both processes need the same one and both build their adapters
+  // before the graph exists. Every provider call in either is written down.
+  const ids = new UuidV7Generator();
   const providers = buildProviders({
     providers: config.tenants.get(slug)?.providers ?? {},
     clock,
+    recorder: new TenantScopedCallRecorder({
+      scope: new TenantScope(db),
+      tenantId: tenant.id,
+      clock,
+      ids,
+      logger,
+    }),
   });
   refuseIncompleteProviders(config.global.appEnv, providers);
 
@@ -89,7 +106,7 @@ async function start(): Promise<void> {
     db,
     logger,
     clock,
-    ids: new UuidV7Generator(),
+    ids,
     tenantId: tenant.id,
     providers,
   });

@@ -189,3 +189,51 @@ export interface WebhookVerifier {
     headers: Readonly<Record<string, string | undefined>>,
   ): InboundEventShape;
 }
+
+/**
+ * What we know about a provider call once it is over (MP-2, finding C4).
+ *
+ * `outcome` is the same three-way distinction the outbox makes, and for the
+ * same reason: **`unreachable` is not `rejected`.** A call that never got an
+ * answer may still have moved money, and collapsing it into "failed" is how a
+ * payment gets retried twice.
+ */
+export type ProviderCallOutcome = "ok" | "rejected" | "unreachable";
+
+export interface ProviderCall {
+  readonly providerId: string;
+  /** Method and path. **Never the query string** — it carries references. */
+  readonly operation: string;
+  readonly correlationId?: string | undefined;
+  readonly idempotencyId?: string | undefined;
+  readonly outcome: ProviderCallOutcome;
+  /** Absent when the provider never answered. */
+  readonly responseStatus?: number | undefined;
+  readonly requestBody: string;
+  readonly responseBody: string;
+  readonly errorMessage?: string | undefined;
+  readonly startedAt: Instant;
+  readonly durationMs: number;
+}
+
+/**
+ * Where a provider call gets written down.
+ *
+ * **`record` must never reject.** An adapter awaits it on the call path, so a
+ * rejection here would turn a logging failure into a failed payment. The
+ * implementation swallows and reports its own errors; the contract is stated
+ * on the port because every implementation has to honour it, and a test
+ * asserts it.
+ *
+ * Awaited rather than fired and forgotten, deliberately. The cost is that a
+ * slow log slows the call. The alternative loses records exactly when the
+ * system is unhealthy — which is the only time anybody reads this table.
+ */
+export interface ProviderCallRecorder {
+  record(call: ProviderCall): Promise<void>;
+}
+
+/** A recorder for a context that has none. Used by tests and by fixtures. */
+export const NO_RECORDING: ProviderCallRecorder = {
+  record: () => Promise.resolve(),
+};

@@ -14,7 +14,11 @@ import {
   createLogger,
   loadConfig,
 } from "@baas/platform";
-import { createDatabase } from "@baas/persistence";
+import {
+  TenantScope,
+  TenantScopedCallRecorder,
+  createDatabase,
+} from "@baas/persistence";
 import type { Database } from "@baas/persistence";
 import {
   buildProviders,
@@ -29,7 +33,14 @@ const logger = createLogger({
   service: `${config.global.observability.serviceName}-worker`,
   environment: config.global.appEnv,
   level: config.global.logLevel,
-  additionalFields: ["tenantSlug", "accounts", "projected", "failed", "jobs"],
+  additionalFields: [
+    "tenantSlug",
+    "accounts",
+    "projected",
+    "failed",
+    "jobs",
+    "deleted",
+  ],
 });
 
 const db = createDatabase<Database>(config.global.database);
@@ -48,9 +59,20 @@ async function start(): Promise<void> {
     throw new Error(`no tenant row for slug "${slug}"`);
   }
 
+  // The recorder is built here rather than inside the composition root
+  // because both processes need the same one and both build their adapters
+  // before the graph exists. Every provider call in either is written down.
+  const ids = new UuidV7Generator();
   const providers = buildProviders({
     providers: config.tenants.get(slug)?.providers ?? {},
     clock,
+    recorder: new TenantScopedCallRecorder({
+      scope: new TenantScope(db),
+      tenantId: tenant.id,
+      clock,
+      ids,
+      logger,
+    }),
   });
   refuseIncompleteProviders(config.global.appEnv, providers);
 
@@ -58,7 +80,7 @@ async function start(): Promise<void> {
     db,
     logger,
     clock,
-    ids: new UuidV7Generator(),
+    ids,
     tenantId: tenant.id,
     providers,
   });

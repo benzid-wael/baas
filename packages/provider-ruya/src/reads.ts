@@ -183,6 +183,8 @@ export class RuyaReads implements AccountReadPort, TransactionReadPort {
     try {
       const raw = await this.http.get<RawBalanceDetails>(
         `${BALANCE_DETAILS}/${encodeURIComponent(accountReference)}`,
+        // The reference goes in the path, so the log records the route.
+        { operation: `GET ${BALANCE_DETAILS}/{accountReference}` },
       );
       return raw.accountBalanceDetails?.balance;
     } catch (error) {

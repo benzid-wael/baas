@@ -81,6 +81,27 @@ Four reasons, and they mean different things to different people:
 The first two are the pair worth keeping apart: one is a job for whoever holds
 the credentials, the other for whoever ships the code.
 
+### The provider request log
+
+Every provider call — request, response, status, duration, outcome — is written
+to `provider_request_log`, and an operator reads it at
+`GET /platform/provider-requests`. It is the thing that makes a failed call
+explicable, and it is also the **most sensitive table in the service**. Three
+rules follow, and all three are enforced rather than advised:
+
+- **Bodies are scrubbed on the way in**, by the same named shapes as the log
+  scrubber. A reduction of risk, not an elimination of it.
+- **Rows expire.** Every row carries the time it must be gone by (30 days by
+  default), and the worker purges them on its ordinary schedule. A deployment
+  running the API without the worker accumulates provider bodies forever — that
+  is the single worst state this service can be in.
+- **Reads are audited**, and the list view omits the bodies. Fetching one call
+  by id is a separate act with its own audit row.
+
+`operation` records the **route**, not the concrete path: BaNCS and Keel both
+put account references in the path, and a list of fifty of those is fifty
+account references on an operator's screen.
+
 ### Partner callbacks
 
 `POST /webhooks/:provider` is mounted and verifies signatures. Both schemes are

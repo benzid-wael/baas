@@ -7,7 +7,7 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { sql } from "kysely";
 import { uuidv7 } from "uuidv7";
-import { Money } from "@baas/domain";
+import { Duration, Money } from "@baas/domain";
 import type { AccountReadPort } from "@baas/domain";
 import {
   SequenceIdGenerator,
@@ -18,6 +18,8 @@ import {
 } from "@baas/platform";
 import {
   AccountRepository,
+  ProviderRequestLogRepository,
+  TenantScopedCallRecorder,
   AuditRepository,
   BalanceRepository,
   CustomerRepository,
@@ -156,6 +158,7 @@ beforeAll(async () => {
       logger,
     ),
     audit,
+    new ProviderRequestLogRepository(),
   );
 
   @Module({
@@ -383,5 +386,141 @@ describe("routes and the published contract agree", () => {
     // the registry describes the whole application. The other direction is
     // asserted against the assembled application in `application.test.ts`.
     expect(mismatch.mountedButUnregistered).toEqual([]);
+  });
+});
+
+/**
+ * The provider request log through the operator surface (MP-2, finding C4).
+ *
+ * Finding C4 asks for this to be "a first-class product surface, with
+ * retention and an operator view, not an implementation detail". The retention
+ * half is asserted in persistence; this is the view.
+ */
+describe("the provider request log", () => {
+  beforeEach(async () => {
+    await harness.db.deleteFrom("provider_request_log").execute();
+  });
+
+  async function seed(
+    calls: readonly {
+      operation: string;
+      provider?: string;
+      correlationId?: string;
+    }[],
+  ): Promise<void> {
+    const recorder = new TenantScopedCallRecorder({
+      scope,
+      tenantId: TENANT,
+      clock: new TestClock(START),
+      ids: new SequenceIdGenerator(Array.from({ length: 50 }, () => uuidv7())),
+      logger,
+    });
+    for (const [index, entry] of calls.entries()) {
+      await recorder.record({
+        providerId: entry.provider ?? "keel",
+        operation: entry.operation,
+        correlationId: entry.correlationId,
+        outcome: "ok",
+        responseStatus: 200,
+        requestBody: "",
+        responseBody: '{"email":"someone@example.com"}',
+        startedAt: START.plus(Duration.ofSeconds(index)),
+        durationMs: 10,
+      });
+    }
+  }
+
+  it("lists calls newest first, without their bodies", async () => {
+    // The bodies are the reason this table is the most sensitive in the
+    // service. Fifty of them on one screen answers a question that the status
+    // and the duration usually answer on their own.
+    await seed([{ operation: "GET /one" }, { operation: "GET /two" }]);
+    const response = await request(server())
+      .get("/platform/provider-requests")
+      .set(asOperator());
+
+    expect(response.status).toBe(200);
+    const body = response.body as { items: { operation: string }[] };
+    expect(body.items.map((item) => item.operation)).toEqual([
+      "GET /two",
+      "GET /one",
+    ]);
+    expect(JSON.stringify(body)).not.toContain("responseBody");
+  });
+
+  it("returns the bodies only when one call is asked for by id", async () => {
+    await seed([{ operation: "GET /one" }]);
+    const list = await request(server())
+      .get("/platform/provider-requests")
+      .set(asOperator());
+    const id = (list.body as { items: { id: string }[] }).items[0]?.id ?? "";
+
+    const one = await request(server())
+      .get(`/platform/provider-requests/${id}`)
+      .set(asOperator());
+    expect(one.status).toBe(200);
+    const body = one.body as { responseBody: string };
+    // Scrubbed on the way in, so the operator sees the shape without the
+    // value. The table is a diagnostic, not a copy of the customer record.
+    expect(body.responseBody).toContain("[redacted]");
+    expect(body.responseBody).not.toContain("someone@example.com");
+  });
+
+  it("audits the list read, naming the filter rather than a customer", async () => {
+    await seed([{ operation: "GET /one", provider: "ruya" }]);
+    await request(server())
+      .get("/platform/provider-requests?providerId=ruya")
+      .set(asOperator());
+
+    const audit = await harness.db
+      .selectFrom("audit_event")
+      .selectAll()
+      .where("action", "=", "provider_request_log.read")
+      .executeTakeFirstOrThrow();
+    expect(audit.subject_id).toBe("ruya");
+    expect(audit.actor_kind).toBe("operator");
+    expect(audit.actor_id).not.toBeNull();
+  });
+
+  it("audits fetching one call, by its id", async () => {
+    await seed([{ operation: "GET /one" }]);
+    const list = await request(server())
+      .get("/platform/provider-requests")
+      .set(asOperator());
+    const id = (list.body as { items: { id: string }[] }).items[0]?.id ?? "";
+    await request(server())
+      .get(`/platform/provider-requests/${id}`)
+      .set(asOperator());
+
+    const audit = await harness.db
+      .selectFrom("audit_event")
+      .selectAll()
+      .where("action", "=", "provider_request_log.read_one")
+      .executeTakeFirstOrThrow();
+    expect(audit.subject_id).toBe(id);
+  });
+
+  it("narrows by correlation id", async () => {
+    await seed([
+      { operation: "GET /one", correlationId: "corr-1" },
+      { operation: "GET /two" },
+    ]);
+    const response = await request(server())
+      .get("/platform/provider-requests?correlationId=corr-1")
+      .set(asOperator());
+    expect((response.body as { items: unknown[] }).items).toHaveLength(1);
+  });
+
+  it("says plainly that a call does not exist", async () => {
+    const response = await request(server())
+      .get(`/platform/provider-requests/${uuidv7()}`)
+      .set(asOperator());
+    expect(response.status).toBe(404);
+  });
+
+  it("is refused without an operator session", async () => {
+    expect(
+      (await request(server()).get("/platform/provider-requests")).status,
+    ).toBe(401);
   });
 });

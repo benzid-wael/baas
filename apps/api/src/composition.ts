@@ -8,6 +8,7 @@ import {
   BalanceRepository,
   CustomerRepository,
   Inbox,
+  ProviderRequestLogRepository,
   OperatorRepository,
   TenantScope,
   TransactionRepository,
@@ -135,6 +136,7 @@ export function composeApi(options: ComposeApiOptions): ApiGraph {
           transactions,
           readBalance,
           audit,
+          new ProviderRequestLogRepository(),
         ),
       },
       webhooks: {

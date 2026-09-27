@@ -1,10 +1,26 @@
 import { randomUUID } from "node:crypto";
+import { NO_RECORDING } from "@baas/domain";
+import type {
+  Clock,
+  ProviderCallOutcome,
+  ProviderCallRecorder,
+} from "@baas/domain";
 import type { KeelAccessTokens } from "./access-token.js";
 import type { KeelConfig } from "./config.js";
 import { KeelApiError, KeelTransportError } from "./errors.js";
 import { signKeelRequest } from "./signing.js";
 
 export interface KeelRequestOptions {
+  /**
+   * The **route**, for the request log, when the path carries an identifier.
+   *
+   * `/accounts/ACC-9931` in a log column that an operator console lists fifty
+   * of is an account reference on screen for no reason, and it makes the
+   * column useless for grouping besides. The caller states the template —
+   * `GET /api/baas/v2/accounts/{accountReference}` — and the concrete path is
+   * still what gets requested.
+   */
+  readonly operation?: string;
   readonly idempotencyId?: string;
   readonly correlationId?: string;
   readonly query?: Readonly<Record<string, string | number | undefined>>;
@@ -29,6 +45,13 @@ export class KeelHttp {
     private readonly config: KeelConfig,
     private readonly tokens: KeelAccessTokens,
     private readonly fetchImpl: typeof fetch = fetch,
+    /**
+     * Where the call is written down (MP-2). Defaulted to nothing so that a
+     * test or a fixture needs no database, and so that adding the log did not
+     * become a change to every construction site.
+     */
+    private readonly clock?: Clock,
+    private readonly recorder: ProviderCallRecorder = NO_RECORDING,
   ) {}
 
   get<T>(path: string, options: KeelRequestOptions = {}): Promise<T> {
@@ -97,41 +120,77 @@ export class KeelHttp {
 
     const rawBody = body === undefined ? "" : JSON.stringify(body);
     const headers = await this.headersFor(method, rawBody, options);
-    const endpoint = `${method} ${url.pathname}`;
+    const endpoint = options.operation ?? `${method} ${url.pathname}`;
+    // The path only. The query string carries owner and account references,
+    // and this value is displayed in an operator console.
+    const startedAt = this.clock?.now();
 
-    let response: Response;
+    // Recorded in a `finally`, so that every exit from this method — answered,
+    // refused or unreachable — leaves a row. An earlier shape recorded at each
+    // return site and would have missed one the first time a branch was added.
+    let outcome: ProviderCallOutcome = "unreachable";
+    let responseStatus: number | undefined;
+    let responseBody = "";
+    let errorMessage: string | undefined;
+
     try {
-      response = await this.fetchImpl(url, {
-        method,
-        headers,
-        ...(body === undefined ? {} : { body: rawBody }),
-        signal: AbortSignal.timeout(this.config.httpTimeoutMs),
-      });
-    } catch (error) {
-      // We do not know whether Keel acted. That distinction is the whole
-      // reason this is a different error type from the one below.
-      throw new KeelTransportError(
-        endpoint,
-        `could not reach Keel: ${error instanceof Error ? error.message : "unknown"}`,
-        { cause: error },
-        options.idempotencyId,
-      );
+      let response: Response;
+      try {
+        response = await this.fetchImpl(url, {
+          method,
+          headers,
+          ...(body === undefined ? {} : { body: rawBody }),
+          signal: AbortSignal.timeout(this.config.httpTimeoutMs),
+        });
+      } catch (error) {
+        // We do not know whether Keel acted. That distinction is the whole
+        // reason this is a different error type from the one below.
+        errorMessage =
+          error instanceof Error ? error.message : "unknown transport failure";
+        throw new KeelTransportError(
+          endpoint,
+          `could not reach Keel: ${errorMessage}`,
+          { cause: error },
+          options.idempotencyId,
+        );
+      }
+
+      const text = await response.text();
+      responseStatus = response.status;
+      responseBody = text;
+      const parsed: unknown = text === "" ? null : safeJson(text);
+
+      if (!response.ok) {
+        outcome = "rejected";
+        throw new KeelApiError(
+          response.status,
+          endpoint,
+          parsed,
+          `Keel answered ${response.status.toString()} for ${endpoint}`,
+          options.idempotencyId,
+        );
+      }
+
+      outcome = "ok";
+      return parsed as T;
+    } finally {
+      if (startedAt !== undefined && this.clock !== undefined) {
+        await this.recorder.record({
+          providerId: "keel",
+          operation: endpoint,
+          correlationId: options.correlationId,
+          idempotencyId: options.idempotencyId,
+          outcome,
+          responseStatus,
+          requestBody: rawBody,
+          responseBody,
+          errorMessage,
+          startedAt,
+          durationMs:
+            this.clock.now().epochMilliseconds - startedAt.epochMilliseconds,
+        });
+      }
     }
-
-    const text = await response.text();
-    const parsed: unknown = text === "" ? null : safeJson(text);
-
-    if (!response.ok) {
-      throw new KeelApiError(
-        response.status,
-        endpoint,
-        parsed,
-        `Keel answered ${response.status.toString()} for ${endpoint}`,
-        options.idempotencyId,
-      );
-    }
-
-    return parsed as T;
   }
 }
 

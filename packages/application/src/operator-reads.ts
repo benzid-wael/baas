@@ -4,7 +4,11 @@ import type {
   AccountRepository,
   AuditRepository,
   CustomerRepository,
+  ProviderCallPage,
+  ProviderCallQuery,
   ProviderLink,
+  ProviderRequestLogRepository,
+  RecordedCall,
   ScopedDatabase,
   TenantScope,
   TransactionPageResult,
@@ -64,6 +68,7 @@ export class OperatorReads {
     private readonly transactions: TransactionRepository,
     private readonly balances: ReadBalance,
     private readonly audit: AuditRepository,
+    private readonly requestLog: ProviderRequestLogRepository,
   ) {}
 
   /** By external user uuid. Exact match; see the class note. */
@@ -211,6 +216,62 @@ export class OperatorReads {
         limit: page.limit,
         ...(page.cursor === undefined ? {} : { cursor: page.cursor }),
       });
+    });
+  }
+
+  /**
+   * The provider request log (MP-2, finding C4).
+   *
+   * Audited like every other operator read, and for a sharper reason than the
+   * rest: these rows hold a provider's verbatim request and response, so this
+   * is the widest view of personal data the console offers. It is also the one
+   * read here that is **not** about a single customer, so the audit names the
+   * filter that was applied rather than a subject — which is the honest record
+   * of what was seen.
+   */
+  async providerCalls(
+    tenantId: string,
+    actor: Actor,
+    query: ProviderCallQuery,
+  ): Promise<ProviderCallPage> {
+    return this.scope.run(tenantId, async (db) => {
+      const page = await this.requestLog.page(db, query);
+      await this.audit.record(db, tenantId, {
+        actorId: actor.operatorId,
+        actorKind: "operator",
+        action: "provider_request_log.read",
+        subjectType: "provider_request_log",
+        // No single subject. The filter is the subject, and a scan with no
+        // filter says so as `all`.
+        subjectId: query.correlationId ?? query.providerId ?? "all",
+        detail: {
+          returned: page.calls.length,
+          filteredByProvider: query.providerId !== undefined,
+          filteredByCorrelation: query.correlationId !== undefined,
+          paged: query.cursor !== undefined,
+        },
+      });
+      return page;
+    });
+  }
+
+  /** One call, in full. Audited by its own id, which is not personal data. */
+  async providerCall(
+    tenantId: string,
+    actor: Actor,
+    id: string,
+  ): Promise<RecordedCall | undefined> {
+    return this.scope.run(tenantId, async (db) => {
+      const call = await this.requestLog.byId(db, id);
+      await this.audit.record(db, tenantId, {
+        actorId: actor.operatorId,
+        actorKind: "operator",
+        action: "provider_request_log.read_one",
+        subjectType: "provider_request_log",
+        subjectId: id,
+        detail: { found: call !== undefined },
+      });
+      return call;
     });
   }
 

@@ -5,6 +5,7 @@ import type { ProviderBuildResult } from "@baas/provider-registry";
 import type { Logger } from "@baas/platform";
 import {
   AccountRepository,
+  ProviderRequestLogRepository,
   TenantScope,
   TransactionRepository,
 } from "@baas/persistence";
@@ -30,6 +31,7 @@ export interface WorkerOptions {
    */
   readonly providers?: readonly ProviderBuildResult[];
   readonly projectEvery?: Duration;
+  readonly purgeEvery?: Duration;
 }
 
 export interface WorkerHandle {
@@ -53,6 +55,8 @@ export function buildWorker(options: WorkerOptions): WorkerHandle {
   const accounts = new AccountRepository(options.clock, options.ids);
   const transactions = new TransactionRepository();
   const providers = transactionPortsOf(options.providers ?? []);
+
+  const requestLog = new ProviderRequestLogRepository();
 
   const projector = new TransactionProjector({
     scope,
@@ -89,6 +93,29 @@ export function buildWorker(options: WorkerOptions): WorkerHandle {
       },
     });
   }
+
+  // **Retention runs, and it runs here** (MP-2, finding N2). The incumbent has
+  // a retention routine that was written and never scheduled, which is the
+  // same as not having one — worse, because it reads like having one. It is
+  // unconditional: unlike the projector it needs no adapter, and a deployment
+  // that holds provider bodies with nothing deleting them is the single worst
+  // state this service can be in.
+  jobs.push({
+    name: "purge-provider-request-log",
+    every: options.purgeEvery ?? Duration.ofMinutes(15),
+    run: async () => {
+      const deleted = await requestLog.purgeExpired(
+        options.db,
+        options.clock.now(),
+      );
+      if (deleted > 0) {
+        options.logger.info(
+          { deleted },
+          "purged expired provider request log rows",
+        );
+      }
+    },
+  });
 
   return {
     jobs,

@@ -1,5 +1,10 @@
 import { parse as parseLossless } from "lossless-json";
-import type { Clock } from "@baas/domain";
+import { NO_RECORDING } from "@baas/domain";
+import type {
+  Clock,
+  ProviderCallOutcome,
+  ProviderCallRecorder,
+} from "@baas/domain";
 import type { RuyaConfig } from "./config.js";
 import {
   RuyaApiError,
@@ -26,6 +31,12 @@ export function parseRuyaJson(text: string): unknown {
 }
 
 export interface RuyaRequestOptions {
+  /**
+   * The **route**, for the request log, when the path carries an identifier.
+   * See the note on Keel's equivalent: an account reference in a list column
+   * is an account reference on screen, and BaNCS puts one in the path.
+   */
+  readonly operation?: string;
   readonly query?: Readonly<Record<string, string | number | undefined>>;
   readonly correlationId?: string;
   /** Off for the token call itself, which must not recurse. */
@@ -50,6 +61,8 @@ export class RuyaHttp {
     private readonly config: RuyaConfig,
     private readonly clock: Clock,
     private readonly fetchImpl: typeof fetch = fetch,
+    /** Where the call is written down (MP-2). Defaulted so fixtures need none. */
+    private readonly recorder: ProviderCallRecorder = NO_RECORDING,
   ) {}
 
   async get<T>(path: string, options: RuyaRequestOptions = {}): Promise<T> {
@@ -131,59 +144,103 @@ export class RuyaHttp {
   ): Promise<T> {
     let refreshed = false;
 
+    // **One row per attempt**, not one per call. A request that succeeded on
+    // its third try after two 500s is a different thing from one that
+    // succeeded immediately, and only the operator reading this table can
+    // decide whether that matters.
     for (let attempt = 0; ; attempt += 1) {
       const url = this.buildUrl(path, options);
+      const startedAt = this.clock.now();
+      const operation = options.operation ?? `${method} ${path}`;
+      let outcome: ProviderCallOutcome = "unreachable";
+      let responseStatus: number | undefined;
+      let responseBody = "";
+      let errorMessage: string | undefined;
       let response: Response;
 
       try {
-        response = await this.fetchImpl(url, {
-          method,
-          headers: await this.headers(options),
-          signal: AbortSignal.timeout(this.config.httpTimeoutMs),
-        });
-      } catch (error) {
-        if (attempt < this.config.maxRetries) {
+        try {
+          response = await this.fetchImpl(url, {
+            method,
+            headers: await this.headers(options),
+            signal: AbortSignal.timeout(this.config.httpTimeoutMs),
+          });
+        } catch (error) {
+          errorMessage =
+            error instanceof Error
+              ? error.message
+              : "unknown transport failure";
+          if (attempt < this.config.maxRetries) {
+            await this.backoff(attempt);
+            continue;
+          }
+          throw new RuyaTransportError(
+            operation,
+            `could not reach Ruya: ${errorMessage}`,
+            { cause: error },
+          );
+        }
+
+        responseStatus = response.status;
+
+        // A 401 usually means the token expired sooner than it said it would.
+        // Invalidating and retrying **once** is carried over from the
+        // incumbent; retrying repeatedly would turn a revoked credential into
+        // a hot loop against the token endpoint.
+        if (
+          response.status === 401 &&
+          !refreshed &&
+          options.retryOnUnauthorized !== false
+        ) {
+          this.invalidateToken();
+          refreshed = true;
+          outcome = "rejected";
+          continue;
+        }
+
+        const text = await response.text();
+        responseBody = text;
+
+        if (response.status >= 500 && attempt < this.config.maxRetries) {
+          outcome = "rejected";
           await this.backoff(attempt);
           continue;
         }
-        throw new RuyaTransportError(
-          `${method} ${path}`,
-          `could not reach Ruya: ${error instanceof Error ? error.message : "unknown"}`,
-          { cause: error },
-        );
+
+        if (!response.ok) {
+          outcome = "rejected";
+          throw new RuyaApiError(
+            response.status,
+            operation,
+            text === "" ? null : parseRuyaJson(text),
+            `Ruya answered ${response.status.toString()} for ${operation}`,
+          );
+        }
+
+        outcome = "ok";
+        return (text === "" ? null : parseRuyaJson(text)) as T;
+      } finally {
+        // In a `finally` so that every way out of an attempt — answered,
+        // refused, retried or unreachable — leaves a row. Recording at each
+        // exit would miss one the first time a branch was added, and this
+        // method has five.
+        await this.recorder.record({
+          providerId: "ruya",
+          operation,
+          correlationId: options.correlationId,
+          outcome,
+          responseStatus,
+          // A GET, so there is no request body. Kept as a column rather than
+          // made nullable: a POST will have one, and a schema that has to
+          // change for that is a schema that will not.
+          requestBody: "",
+          responseBody,
+          errorMessage,
+          startedAt,
+          durationMs:
+            this.clock.now().epochMilliseconds - startedAt.epochMilliseconds,
+        });
       }
-
-      // A 401 usually means the token expired sooner than it said it would.
-      // Invalidating and retrying **once** is carried over from the incumbent;
-      // retrying repeatedly would turn a revoked credential into a hot loop
-      // against the token endpoint.
-      if (
-        response.status === 401 &&
-        !refreshed &&
-        options.retryOnUnauthorized !== false
-      ) {
-        this.invalidateToken();
-        refreshed = true;
-        continue;
-      }
-
-      const text = await response.text();
-
-      if (response.status >= 500 && attempt < this.config.maxRetries) {
-        await this.backoff(attempt);
-        continue;
-      }
-
-      if (!response.ok) {
-        throw new RuyaApiError(
-          response.status,
-          `${method} ${path}`,
-          text === "" ? null : parseRuyaJson(text),
-          `Ruya answered ${response.status.toString()} for ${method} ${path}`,
-        );
-      }
-
-      return (text === "" ? null : parseRuyaJson(text)) as T;
     }
   }
 

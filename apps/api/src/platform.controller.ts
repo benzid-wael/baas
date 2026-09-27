@@ -11,7 +11,7 @@ import {
 import { fromMoney } from "@baas/contracts";
 import type { AccountWire, TransactionWire } from "@baas/contracts";
 import type { OperatorAccountView, OperatorReads } from "@baas/application";
-import type { ProjectedTransaction } from "@baas/persistence";
+import type { ProjectedTransaction, RecordedCall } from "@baas/persistence";
 import { formatInstant, fromJsDate } from "@baas/platform";
 import { OperatorSurface, Roles } from "./decorators.js";
 import { toBalanceWire } from "./wire.js";
@@ -131,6 +131,76 @@ export class PlatformReadController {
       ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
     };
   }
+
+  /**
+   * The provider request log (MP-2, finding C4).
+   *
+   * Finding C4 calls the incumbent's version "the only reason several failures
+   * were explicable" and asks for it to be a product surface rather than an
+   * implementation detail. This is that surface.
+   *
+   * The list deliberately **omits the bodies**. They are the reason this table
+   * is the most sensitive in the service, and a list view puts fifty of them
+   * on one screen for a question that is usually answered by the status and
+   * the duration. Fetching one by id is a second, separately audited act.
+   */
+  @Get("provider-requests")
+  @OperatorSurface()
+  @Roles("operator", "admin")
+  async providerRequests(
+    @Req() request: RequestWithPrincipal,
+    @Query("providerId") providerId?: string,
+    @Query("correlationId") correlationId?: string,
+    @Query("limit") limit?: string,
+    @Query("cursor") cursor?: string,
+  ): Promise<unknown> {
+    const { tenantId, actor } = operator(request);
+    const page = await this.reads.providerCalls(tenantId, actor, {
+      limit: pageSize(limit),
+      providerId,
+      correlationId,
+      cursor,
+    });
+    return {
+      items: page.calls.map(toCallSummaryWire),
+      ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+    };
+  }
+
+  /** One call, bodies included. A separate act, separately audited. */
+  @Get("provider-requests/:id")
+  @OperatorSurface()
+  @Roles("operator", "admin")
+  async providerRequest(
+    @Req() request: RequestWithPrincipal,
+    @Param("id") id: string,
+  ): Promise<unknown> {
+    const { tenantId, actor } = operator(request);
+    const call = await this.reads.providerCall(tenantId, actor, id);
+    if (call === undefined) {
+      throw new NotFoundException("no such provider request");
+    }
+    return {
+      ...toCallSummaryWire(call),
+      requestBody: call.requestBody,
+      responseBody: call.responseBody,
+      errorMessage: call.errorMessage,
+    };
+  }
+}
+
+function toCallSummaryWire(call: RecordedCall): Record<string, unknown> {
+  return {
+    id: call.id,
+    providerId: call.providerId,
+    operation: call.operation,
+    correlationId: call.correlationId,
+    idempotencyId: call.idempotencyId,
+    outcome: call.outcome,
+    responseStatus: call.responseStatus,
+    startedAt: formatInstant(fromJsDate(call.startedAt)),
+    durationMs: call.durationMs,
+  };
 }
 
 function operator(request: RequestWithPrincipal): {

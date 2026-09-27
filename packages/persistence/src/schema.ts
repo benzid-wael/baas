@@ -41,6 +41,24 @@ export interface ApiClientScopeTable {
   reason: string;
 }
 
+/** See migration 0009. Append-only for the application; purged by retention. */
+export interface ProviderRequestLogTable {
+  id: string;
+  tenant_id: string;
+  provider_id: string;
+  operation: string;
+  correlation_id: string | null;
+  idempotency_id: string | null;
+  outcome: string;
+  response_status: number | null;
+  request_body: string;
+  response_body: string;
+  error_message: string | null;
+  started_at: Date;
+  duration_ms: number;
+  retention_until: Date;
+}
+
 export interface AuditEventTable {
   id: string;
   tenant_id: string;
@@ -230,6 +248,7 @@ export interface Database {
   schema_migration: SchemaMigrationTable;
   tenant: TenantTable;
   api_client: ApiClientTable;
+  provider_request_log: ProviderRequestLogTable;
   api_client_scope: ApiClientScopeTable;
   audit_event: AuditEventTable;
 }

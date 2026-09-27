@@ -85,6 +85,8 @@ describe("the published registry", () => {
       "/platform/accounts/{accountReference}/transactions",
       "/platform/customers",
       "/platform/customers/{customerId}/accounts",
+      "/platform/provider-requests",
+      "/platform/provider-requests/{id}",
     ]);
   });
 });

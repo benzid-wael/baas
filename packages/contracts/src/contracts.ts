@@ -141,6 +141,30 @@ export function buildRegistry(): ContractRegistry {
         },
       },
     })
+    .path("/platform/provider-requests", {
+      get: {
+        operationId: "listProviderRequests",
+        summary:
+          "Provider calls, newest first. Bodies are omitted; fetch one by id for those. Audited.",
+        responses: {
+          "200": { description: "A page of provider calls" },
+        },
+      },
+    })
+    .path("/platform/provider-requests/{id}", {
+      get: {
+        operationId: "getProviderRequest",
+        summary:
+          "One provider call, including the scrubbed request and response bodies. Separately audited.",
+        responses: {
+          "200": { description: "The provider call" },
+          "404": {
+            description: "No such provider request",
+            schema: "ErrorResponse",
+          },
+        },
+      },
+    })
     .path("/mobile/accounts/{accountReference}/transactions", {
       get: {
         operationId: "listTransactions",

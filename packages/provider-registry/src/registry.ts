@@ -1,4 +1,5 @@
-import type { Clock } from "@baas/domain";
+import { NO_RECORDING } from "@baas/domain";
+import type { Clock, ProviderCallRecorder } from "@baas/domain";
 import type { ProviderCredentials } from "@baas/platform";
 import type { ProviderAdapter } from "@baas/application";
 import { KeelAccessTokens, KeelHttp, KeelReads } from "@baas/provider-keel";
@@ -33,6 +34,13 @@ export interface BuildProvidersOptions {
   readonly clock: Clock;
   /** Injectable so a test can build a real adapter without a real bank. */
   readonly fetchImpl?: typeof fetch;
+  /**
+   * Where every provider call is written down (MP-2). Defaulted to nothing so
+   * that a test builds an adapter without a database — but a deployment that
+   * leaves it out gets adapters that work and a log that stays empty, which is
+   * why the composition root always supplies one.
+   */
+  readonly recorder?: ProviderCallRecorder;
 }
 
 /**
@@ -48,6 +56,7 @@ interface ProviderFactory {
     credentials: ProviderCredentials,
     clock: Clock,
     fetchImpl: typeof fetch,
+    recorder: ProviderCallRecorder,
   ): ProviderAdapter;
 }
 
@@ -57,7 +66,7 @@ const FACTORIES: Readonly<Record<string, ProviderFactory>> = {
     // message says nothing about signatures — so a deployment missing it looks
     // like a permissions problem for as long as anyone is prepared to look.
     requires: ["accessTokenEndpoint", "signingPrivateKeyPem"],
-    build(credentials, clock, fetchImpl) {
+    build(credentials, clock, fetchImpl, recorder) {
       const http = new KeelHttp(
         {
           baseUrl: credentials.baseUrl,
@@ -72,6 +81,8 @@ const FACTORIES: Readonly<Record<string, ProviderFactory>> = {
         },
         new KeelAccessTokens(clock, fetchImpl),
         fetchImpl,
+        clock,
+        recorder,
       );
       const reads = new KeelReads(http, clock);
       // Capabilities are derived from the ports supplied, never declared
@@ -84,7 +95,7 @@ const FACTORIES: Readonly<Record<string, ProviderFactory>> = {
     // TCS BaNCS demands all four on every call and answers unhelpfully
     // without them.
     requires: ["entity", "languageCode", "userId", "channelId"],
-    build(credentials, clock, fetchImpl) {
+    build(credentials, clock, fetchImpl, recorder) {
       const http = new RuyaHttp(
         {
           baseUrl: credentials.baseUrl,
@@ -100,6 +111,7 @@ const FACTORIES: Readonly<Record<string, ProviderFactory>> = {
         },
         clock,
         fetchImpl,
+        recorder,
       );
       const reads = new RuyaReads(http, clock);
       return {
@@ -127,6 +139,7 @@ export function buildProviders(
   options: BuildProvidersOptions,
 ): readonly ProviderBuildResult[] {
   const fetchImpl = options.fetchImpl ?? fetch;
+  const recorder = options.recorder ?? NO_RECORDING;
   const results: ProviderBuildResult[] = [];
 
   for (const [providerId, credentials] of Object.entries(options.providers)) {
@@ -144,7 +157,12 @@ export function buildProviders(
           ? { configured: false, missing }
           : {
               configured: true,
-              adapter: factory.build(credentials, options.clock, fetchImpl),
+              adapter: factory.build(
+                credentials,
+                options.clock,
+                fetchImpl,
+                recorder,
+              ),
             },
     });
   }

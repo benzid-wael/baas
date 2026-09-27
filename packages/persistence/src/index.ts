@@ -10,6 +10,7 @@ export * from "./introspect.js";
 export * from "./migrator.js";
 export * from "./operator-repository.js";
 export * from "./outbox.js";
+export * from "./provider-request-log.js";
 export * from "./schema.js";
 export * from "./tenant-scope.js";
 export * from "./transaction-repository.js";
