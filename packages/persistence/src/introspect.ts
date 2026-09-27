@@ -138,6 +138,17 @@ export const DECLARED_SCHEMA: Readonly<Record<string, readonly string[]>> = {
     "observed_at",
     "created_at",
   ],
+  balance_observation: [
+    "id",
+    "tenant_id",
+    "account_id",
+    "currency",
+    "available_minor_units",
+    "current_minor_units",
+    "source",
+    "observed_at",
+    "recorded_at",
+  ],
   customer: [
     "id",
     "tenant_id",

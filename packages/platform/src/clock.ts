@@ -59,6 +59,11 @@ export function toJsDate(instant: Instant): Date {
   return new Date(instant.epochMilliseconds);
 }
 
+/** The reverse of `toJsDate`, for a value read back out of a driver. */
+export function fromJsDate(date: Date): Instant {
+  return Instant.fromEpochMilliseconds(date.getTime());
+}
+
 /**
  * Parse ISO-8601 into an instant.
  *

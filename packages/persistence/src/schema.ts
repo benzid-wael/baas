@@ -148,7 +148,21 @@ export interface AccountTable {
   created_at: Date;
 }
 
+export interface BalanceObservationTable {
+  id: string;
+  tenant_id: string;
+  account_id: string;
+  currency: string;
+  /** `pg` returns BIGINT as a string, which is what `Money` wants. */
+  available_minor_units: string;
+  current_minor_units: string;
+  source: "provider_read" | "reconciled";
+  observed_at: Date;
+  recorded_at: Date;
+}
+
 export interface Database {
+  balance_observation: BalanceObservationTable;
   account: AccountTable;
   customer: CustomerTable;
   provider_customer_link: ProviderCustomerLinkTable;

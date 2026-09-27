@@ -1,7 +1,7 @@
 import type { CurrencyCode } from "./currency.js";
 import type { Branded } from "./identifiers.js";
 import type { Money } from "./money.js";
-import type { Instant } from "./time.js";
+import type { Duration, Instant } from "./time.js";
 
 /**
  * Ports the domain declares and infrastructure implements (RFC-BaaS §5.5).
@@ -95,3 +95,31 @@ export interface TransactionReadPort {
     readonly limit: number;
   }): Promise<TransactionPage>;
 }
+
+/**
+ * What a customer is told about a balance.
+ *
+ * A discriminated union rather than a nullable number, because the three
+ * cases are genuinely different and a client must handle them differently:
+ * a fresh figure, a figure we last saw some time ago, and no figure at all.
+ *
+ * Finding F4: the incumbent's portal rendered an empty charges array as blank
+ * next to a confident total, which read as fee-free. A balance has the same
+ * hazard in a sharper form — an absent balance rendered as `0.00` reads as
+ * "you have no money", which is a worse lie than an error.
+ */
+export type BalanceView =
+  | {
+      readonly kind: "observed";
+      readonly available: Money;
+      readonly current: Money;
+      readonly observedAt: Instant;
+      /** How long ago. Present so a client can show it rather than guess. */
+      readonly age: Duration;
+      /** False when this came from storage because the provider was unreachable. */
+      readonly fresh: boolean;
+    }
+  | {
+      readonly kind: "unavailable";
+      readonly reason: "never_observed" | "provider_unreachable";
+    };

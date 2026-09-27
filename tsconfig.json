@@ -20,6 +20,9 @@
       "path": "./packages/provider-ruya"
     },
     {
+      "path": "./packages/application"
+    },
+    {
       "path": "./apps/provider-sim"
     },
     {

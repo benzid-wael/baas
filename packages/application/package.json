@@ -1,0 +1,34 @@
+{
+  "name": "@baas/application",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Use cases. Orchestrates domain, ports and repositories; owns no framework and no HTTP.",
+  "baas": {
+    "layer": "application"
+  },
+  "license": "UNLICENSED",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@baas/domain": "workspace:*",
+    "@baas/persistence": "workspace:*",
+    "@baas/platform": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "kysely": "^0.27.5",
+    "uuidv7": "^1.0.2"
+  }
+}
