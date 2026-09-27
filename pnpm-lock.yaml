@@ -286,6 +286,28 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@24.19.0)
 
+  packages/provider-ruya:
+    dependencies:
+      '@baas/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@baas/platform':
+        specifier: workspace:*
+        version: link:../platform
+      lossless-json:
+        specifier: ^4.1.1
+        version: 4.3.1
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@24.19.0)
+
 packages:
 
   '@ampproject/remapping@2.3.0':
@@ -1542,6 +1564,9 @@ packages:
 
   lodash.once@4.1.1:
     resolution: {integrity: sha512-Sb487aTOCr9drQVL8pIxOzVhafOjZN9UU54hiN8PU3uAiSV7lx1yYNpbNmex2PK6dSJoNTSJUUswT651yww3Mg==}
+
+  lossless-json@4.3.1:
+    resolution: {integrity: sha512-SqD/Bg3ZfltBJ2Z14hJ/BihnvtV553WO4g9/ePtlp4lrnl9jF3AdIJt53A/Wkg/0Li+LMfxaBqgx1MiFZdQlpQ==}
 
   loupe@3.2.1:
     resolution: {integrity: sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ==}
@@ -3482,6 +3507,8 @@ snapshots:
   lodash.merge@4.6.2: {}
 
   lodash.once@4.1.1: {}
+
+  lossless-json@4.3.1: {}
 
   loupe@3.2.1: {}
 

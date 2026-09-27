@@ -17,6 +17,9 @@
       "path": "./packages/provider-keel"
     },
     {
+      "path": "./packages/provider-ruya"
+    },
+    {
       "path": "./apps/provider-sim"
     },
     {

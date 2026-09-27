@@ -1,0 +1,32 @@
+{
+  "name": "@baas/provider-ruya",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Ruya (TCS BaNCS) adapter. Protocol only: no persistence, no sibling services.",
+  "baas": {
+    "layer": "provider"
+  },
+  "license": "UNLICENSED",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@baas/domain": "workspace:*",
+    "@baas/platform": "workspace:*",
+    "lossless-json": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
