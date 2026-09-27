@@ -76,6 +76,14 @@ export class InvalidInstantError extends DomainError {
   }
 }
 
+export class InvalidCalendarDateError extends DomainError {
+  readonly code = "domain.calendar_date.invalid";
+
+  constructor(readonly value: string) {
+    super(`Not a valid calendar date: ${JSON.stringify(value)}`);
+  }
+}
+
 export class InvalidIdentifierError extends DomainError {
   readonly code = "domain.identifier.invalid";
 

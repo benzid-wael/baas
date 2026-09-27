@@ -1,3 +1,4 @@
+import type { CalendarDate } from "./calendar.js";
 import type { CurrencyCode } from "./currency.js";
 import type { Branded } from "./identifiers.js";
 import type { Money } from "./money.js";
@@ -123,3 +124,20 @@ export type BalanceView =
       readonly kind: "unavailable";
       readonly reason: "never_observed" | "provider_unreachable";
     };
+
+export interface ProviderStatement {
+  readonly statementReference: string;
+  readonly accountReference: string;
+  /** A calendar range, not an instant range. See `CalendarDate`. */
+  readonly from: CalendarDate;
+  readonly to: CalendarDate;
+  /** False when the provider lists a period it cannot yet produce a file for. */
+  readonly available: boolean;
+}
+
+export interface StatementReadPort {
+  listStatements(request: {
+    readonly ownerReference: string;
+    readonly accountReference: string;
+  }): Promise<readonly ProviderStatement[]>;
+}

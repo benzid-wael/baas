@@ -30,6 +30,12 @@ export interface RuyaRequestOptions {
   readonly correlationId?: string;
   /** Off for the token call itself, which must not recurse. */
   readonly retryOnUnauthorized?: boolean;
+  /**
+   * The statement endpoint is Dataverse-style OData and takes none of the
+   * standard BaNCS headers; sending them produces an error that mentions none
+   * of them.
+   */
+  readonly skipStandardHeaders?: boolean;
 }
 
 interface CachedToken {
@@ -203,10 +209,14 @@ export class RuyaHttp {
       Authorization: `Bearer ${await this.accessToken()}`,
       "Content-Type": "application/json",
       Accept: "application/json",
-      entity: this.config.entity,
-      languageCode: String(this.config.languageCode),
-      userId: String(this.config.userId),
-      channelId: String(this.config.channelId),
+      ...(options.skipStandardHeaders === true
+        ? {}
+        : {
+            entity: this.config.entity,
+            languageCode: String(this.config.languageCode),
+            userId: String(this.config.userId),
+            channelId: String(this.config.channelId),
+          }),
     };
     if (options.correlationId !== undefined) {
       headers["X-Request-Id"] = options.correlationId;
