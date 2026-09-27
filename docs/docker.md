@@ -48,6 +48,27 @@ The **API** applies migrations at boot when `DATABASE_MIGRATIONS_RUN=true`. The
 a lock-contention bug that only shows up under load — so start the API first,
 or at least once, before the worker has anything to read.
 
+### Seeding, once, before anything starts
+
+Both processes **refuse to start without a `tenant` row** matching
+`BOOTSTRAP_TENANT_SLUG`. That is deliberate — a service that invents its own
+tenant on boot will eventually invent one in production — so a fresh database
+needs seeding first:
+
+```sh
+docker compose --profile infra up -d     # or point at your own Postgres
+docker compose run --rm seed             # in Docker
+pnpm seed                                # or from your machine
+```
+
+It applies migrations, creates the tenant, and creates an API client whose
+secret it **prints once**. Note the secret down: only its hash is stored, so a
+second run cannot recover it and deliberately does not rotate it — re-running a
+seed to get a lost secret would quietly make it a credential-reset command, and
+the reset would land on whoever was using the old one.
+
+It refuses any tier but `dev`, before touching the database.
+
 ### Full loop — everything in Docker
 
 What CI and a pre-deploy smoke run do.

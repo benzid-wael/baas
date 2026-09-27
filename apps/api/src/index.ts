@@ -14,6 +14,7 @@ export * from "./platform.controller.js";
 export * from "./principal.js";
 export * from "./wire.js";
 export * from "./route-registry.js";
+export * from "./seed.js";
 export * from "./system.controller.js";
 export * from "./webhook-body.filter.js";
 export * from "./webhook.controller.js";

@@ -145,6 +145,25 @@ services:
     ports:
       - "${SIM_PORT:-4010}:4010"
 
+  # One-shot: bring an empty database up to the point the service starts.
+  #
+  #   docker compose run --rm seed
+  #
+  # Its own service rather than a step inside `api` because it mints an API
+  # client secret and prints it. Something that prints a secret should be
+  # something a person ran on purpose, not something that happened during
+  # `up -d`. It refuses any tier but dev, before touching the database.
+  seed:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node", "apps/api/dist/seed-cli.js"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      <<: *app-env
+
   api:
     profiles: [full]
     build:
