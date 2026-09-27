@@ -44,6 +44,31 @@ const NO_DIRECT_CLOCK = [
 ];
 
 /**
+ * A log message is free text, and no field allow-list can govern it (New-8).
+ * `logger.info({ ... }, `sending OTP to ${mobile}`)` defeats the control
+ * entirely, because the value is inside a string before pino sees it.
+ *
+ * So the message must be a literal, and every variable goes through a named
+ * field — where the allow-list already applies and an unlisted name is dropped
+ * and reported. This is the primary control; `scrubText` is the second line,
+ * for words a provider put there.
+ */
+const NO_INTERPOLATED_LOG_MESSAGE = [
+  {
+    selector:
+      "CallExpression[callee.property.name=/^(fatal|error|warn|info|debug|trace)$/] > TemplateLiteral[expressions.length>0]",
+    message:
+      "A log message must be a literal. Put the value in a named field instead, where the allow-list applies (RFC-BaaS 5.11, New-8).",
+  },
+  {
+    selector:
+      "CallExpression[callee.property.name=/^(fatal|error|warn|info|debug|trace)$/] > BinaryExpression[operator='+']",
+    message:
+      "A log message must be a literal. Concatenation hides the value from the field allow-list (RFC-BaaS 5.11, New-8).",
+  },
+];
+
+/**
  * The clock boundary: the one implementation permitted to read the wall clock,
  * and its own test, which must compare against the real clock to prove the
  * implementation reads it. Nothing else in the workspace may appear here.
@@ -78,13 +103,22 @@ export default tseslint.config(
       // RFC-BaaS §5.1: `any` outside tests is zero, not twelve.
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/consistent-type-imports": "error",
-      "no-restricted-syntax": ["error", NO_SILENT_CATCH, ...NO_DIRECT_CLOCK],
+      "no-restricted-syntax": [
+        "error",
+        NO_SILENT_CATCH,
+        ...NO_DIRECT_CLOCK,
+        ...NO_INTERPOLATED_LOG_MESSAGE,
+      ],
     },
   },
   {
     files: CLOCK_BOUNDARY_FILES,
     rules: {
-      "no-restricted-syntax": ["error", NO_SILENT_CATCH],
+      "no-restricted-syntax": [
+        "error",
+        NO_SILENT_CATCH,
+        ...NO_INTERPOLATED_LOG_MESSAGE,
+      ],
     },
   },
   {

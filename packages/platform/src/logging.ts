@@ -4,6 +4,7 @@ import type { DestinationStream, Logger, LoggerOptions } from "pino";
 /** Re-exported so nothing outside this package imports pino directly. */
 export type { Logger } from "pino";
 import { describeError } from "./errors.js";
+import { scrubText } from "./scrub.js";
 
 /**
  * Fields a log record may carry.
@@ -85,10 +86,36 @@ export function createLogger(config: LoggerConfig): Logger {
     level: config.level ?? "info",
     base: { service: config.service, environment: config.environment },
     serializers: {
-      err: (error: unknown) => describeError(error),
+      // Errors are exempt from the allow-list, because filtering them would
+      // strip the stack. That exemption is what makes scrubbing necessary: an
+      // error raised by a provider carries the provider's text, and a bank
+      // saying "account AE07…123 not found" is a bank putting an IBAN in our
+      // logs.
+      err: (error: unknown) => {
+        const described = describeError(error);
+        return {
+          ...described,
+          message: scrubText(described.message),
+          ...(described.stack === undefined
+            ? {}
+            : { stack: scrubText(described.stack) }),
+        };
+      },
     },
     formatters: {
       log: (object) => filterToAllowList(object, allowed, 0),
+    },
+    // The message is free text and no allow-list can govern it. A lint rule
+    // refuses interpolation in this position; this catches what a provider's
+    // own words put there.
+    hooks: {
+      logMethod(args, method) {
+        const last = args.length - 1;
+        if (typeof args[last] === "string") {
+          args[last] = scrubText(args[last]);
+        }
+        method.apply(this, args);
+      },
     },
   };
 

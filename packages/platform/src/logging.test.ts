@@ -207,3 +207,31 @@ describe("the allow-list itself", () => {
     }
   });
 });
+
+describe("free text is scrubbed (New-8)", () => {
+  it("redacts a provider's own words in an error, which the allow-list exempts", () => {
+    // `err` is exempt from the field allow-list so the stack survives. That
+    // exemption is exactly why the text needs scrubbing: a bank saying
+    // "account AE07…123 not found" is a bank putting an IBAN in our logs.
+    const { records, logger } = capture();
+    logger.error(
+      { err: new Error("account AE070331234567890123456 not found") },
+      "provider read failed",
+    );
+    const serialised = JSON.stringify(records[0]);
+    expect(serialised).not.toContain("AE070331234567890123456");
+    expect(serialised).toContain("[redacted]:iban");
+  });
+
+  it("scrubs the message itself, for what slips past the lint rule", () => {
+    const { records, logger } = capture();
+    logger.info({ effectId: "e-1" }, "notified a.person@example.com");
+    expect(records[0]?.["msg"]).toBe("notified [redacted]:email");
+  });
+
+  it("leaves an ordinary message untouched", () => {
+    const { records, logger } = capture();
+    logger.info({ effectId: "e-1" }, "dispatched");
+    expect(records[0]?.["msg"]).toBe("dispatched");
+  });
+});
