@@ -151,3 +151,72 @@ describe("the report", () => {
     expect(report.providers[0]).not.toHaveProperty("reason");
   });
 });
+
+/**
+ * Correction C10. These two cases were unreachable before New-19: `report()`
+ * iterated the adapters, so a declared provider with no adapter never appeared
+ * at all, and `status()` answered `adapter_absent` for both of them.
+ */
+describe("a declared provider with no adapter (C10)", () => {
+  it("appears in the report rather than vanishing from it", () => {
+    const report = registry([], { ruya: { configured: false } }).report();
+    expect(report.providers.map((provider) => provider.provider)).toEqual([
+      "ruya",
+    ]);
+  });
+
+  it("says `not_configured` when the build supports it", () => {
+    const one = new CapabilityRegistry({
+      serviceName: "baas",
+      appEnv: "dev",
+      adapters: [],
+      supportedProviders: ["ruya"],
+      deployment: new Map([["ruya", { configured: false }]]),
+      tenants: [],
+      clock: new TestClock(START),
+      formatInstant,
+    });
+    expect(one.status("ruya")).toEqual({
+      available: false,
+      reason: "not_configured",
+    });
+  });
+
+  it("says `adapter_absent` when the build does not support it", () => {
+    // Different reason, different person: one holds credentials, the other
+    // ships code. Collapsing them is what made the incumbent debug the policy
+    // layer for an adapter defect.
+    const one = new CapabilityRegistry({
+      serviceName: "baas",
+      appEnv: "dev",
+      adapters: [],
+      supportedProviders: ["ruya"],
+      deployment: new Map([["lulu", { configured: true }]]),
+      tenants: [],
+      clock: new TestClock(START),
+      formatInstant,
+    });
+    expect(one.status("lulu")).toEqual({
+      available: false,
+      reason: "adapter_absent",
+    });
+  });
+
+  it("says `adapter_absent` for a supported, configured provider that still has none", () => {
+    // A build problem, and it must not be reported as a configuration one.
+    const one = new CapabilityRegistry({
+      serviceName: "baas",
+      appEnv: "dev",
+      adapters: [],
+      supportedProviders: ["ruya"],
+      deployment: new Map([["ruya", { configured: true }]]),
+      tenants: [],
+      clock: new TestClock(START),
+      formatInstant,
+    });
+    expect(one.status("ruya")).toEqual({
+      available: false,
+      reason: "adapter_absent",
+    });
+  });
+});

@@ -5,6 +5,7 @@
   "references": [
     { "path": "../../packages/domain" },
     { "path": "../../packages/platform" },
-    { "path": "../../packages/persistence" }
+    { "path": "../../packages/persistence" },
+    { "path": "../../packages/provider-registry" }
   ]
 }

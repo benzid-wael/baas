@@ -164,11 +164,25 @@ function shapeTenants(
   const providers: Record<string, unknown> = {};
   for (const name of declared) {
     const prefix = `PROVIDER_${name.toUpperCase().replace(/-/g, "_")}`;
+    // Read generically from a computed prefix, so adding a provider is a
+    // manifest change rather than a code change. The provider-specific keys
+    // are optional here and validated by the registry, which is the only place
+    // that knows which of them a given adapter requires (New-19).
     providers[name] = {
       provider: name,
       baseUrl: env[`${prefix}_BASE_URL`],
       clientId: env[`${prefix}_CLIENT_ID`],
       clientSecret: env[`${prefix}_CLIENT_SECRET`],
+      httpTimeoutMs: env[`${prefix}_HTTP_TIMEOUT_MS`],
+      accessTokenEndpoint: env[`${prefix}_ACCESS_TOKEN_ENDPOINT`],
+      signingPrivateKeyPem: env[`${prefix}_SIGNING_PRIVATE_KEY`],
+      bearerToken: env[`${prefix}_BEARER_TOKEN`],
+      entity: env[`${prefix}_ENTITY`],
+      languageCode: env[`${prefix}_LANGUAGE_CODE`],
+      userId: env[`${prefix}_USER_ID`],
+      channelId: env[`${prefix}_CHANNEL_ID`],
+      tokenRefreshBufferSeconds: env[`${prefix}_TOKEN_REFRESH_BUFFER_SECONDS`],
+      maxRetries: env[`${prefix}_MAX_RETRIES`],
     };
   }
 

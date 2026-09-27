@@ -23,6 +23,9 @@
       "path": "./packages/application"
     },
     {
+      "path": "./packages/provider-registry"
+    },
+    {
       "path": "./apps/provider-sim"
     },
     {

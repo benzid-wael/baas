@@ -21,6 +21,8 @@ import {
   ReadTransactions,
 } from "@baas/application";
 import type { ProviderAdapter, ProviderDeployment } from "@baas/application";
+import { KNOWN_PROVIDERS, adaptersOf } from "@baas/provider-registry";
+import type { ProviderBuildResult } from "@baas/provider-registry";
 import { describeError, formatInstant } from "@baas/platform";
 import type { CapabilityProvider } from "./system.controller.js";
 import { RegistryApiClientLookup } from "./api-client-lookup.js";
@@ -42,10 +44,10 @@ import { JwksKeySource, OidcVerifier } from "./oidc.js";
  * - **Nothing here reads `process.env`.** It takes a parsed `Config`. Finding
  *   A8 is configuration read from the environment in fifty places; the cure is
  *   one reader and one graph, not a tidier fifty.
- * - **A provider with no adapter is reported, never guessed.** The adapter map
- *   is empty today and the capability report says `adapter_absent` for
- *   everything, which is the truth. Wiring Keel and Ruya from configuration is
- *   New-19, and it changes this file and nothing else.
+ * - **A provider with no adapter is reported, never guessed.** Adapters are
+ *   built by `@baas/provider-registry`, which is the only layer that knows a
+ *   provider by name; this file receives the results and turns them into one
+ *   capability answer per provider.
  */
 export interface ApiGraph {
   readonly dependencies: ApiDependencies;
@@ -65,11 +67,11 @@ export interface ComposeApiOptions {
    */
   readonly tenantId: string;
   /**
-   * Provider adapters, by provider id. Empty until New-19; passed in rather
-   * than built here so that a test can supply a fake without a real base URL.
+   * What `buildProviders` made of the configuration. Passed in rather than
+   * built here so that a test can supply a fake without a real base URL, and
+   * so that the API and the worker cannot disagree about what is configured.
    */
-  readonly adapters?: readonly ProviderAdapter[];
-  readonly accountPorts?: ReadonlyMap<string, AccountReadPort>;
+  readonly providers?: readonly ProviderBuildResult[];
 }
 
 export function composeApi(options: ComposeApiOptions): ApiGraph {
@@ -83,10 +85,13 @@ export function composeApi(options: ComposeApiOptions): ApiGraph {
   const audit = new AuditRepository(clock, ids);
   const apiClients = new ApiClientRepository();
 
+  const providers = options.providers ?? [];
+  const adapters = adaptersOf(providers);
+
   const readBalance = new ReadBalance(
     scope,
     balances,
-    options.accountPorts ?? new Map(),
+    accountPortsOf(adapters),
     clock,
     logger,
   );
@@ -94,8 +99,9 @@ export function composeApi(options: ComposeApiOptions): ApiGraph {
   const capabilities = new CapabilityRegistry({
     serviceName: config.global.observability.serviceName,
     appEnv: config.global.appEnv,
-    adapters: options.adapters ?? [],
-    deployment: deploymentOf(config),
+    adapters,
+    supportedProviders: KNOWN_PROVIDERS,
+    deployment: deploymentOf(config, providers),
     tenants: [...config.tenants.keys()],
     clock,
     formatInstant,
@@ -150,22 +156,45 @@ export function composeApi(options: ComposeApiOptions): ApiGraph {
  *
  * Finding A1: an adapter reported itself unavailable because it read an
  * environment variable the provider does not use. The adapter is not asked —
- * the configuration is, here, and the registry composes the two answers into
- * one reason.
+ * the build result is, and the capability registry composes that with the
+ * ports the adapter supplies into one reason.
+ *
+ * A provider named in `PROVIDERS` that no factory recognises appears here as
+ * unconfigured so that it is *visible*. Dropping it would make a typo in the
+ * manifest indistinguishable from a provider nobody declared.
  */
-function deploymentOf(config: Config): ReadonlyMap<string, ProviderDeployment> {
+function deploymentOf(
+  config: Config,
+  providers: readonly ProviderBuildResult[],
+): ReadonlyMap<string, ProviderDeployment> {
+  const built = new Map(
+    providers.map((result) => [result.providerId, result.outcome.configured]),
+  );
   const deployment = new Map<string, ProviderDeployment>();
   for (const tenant of config.tenants.values()) {
-    for (const [name, credentials] of Object.entries(tenant.providers)) {
-      deployment.set(name, {
-        configured:
-          credentials.baseUrl !== "" &&
-          credentials.clientId !== "" &&
-          credentials.clientSecret !== "",
-      });
+    for (const name of Object.keys(tenant.providers)) {
+      deployment.set(name, { configured: built.get(name) ?? false });
     }
   }
   return deployment;
+}
+
+/**
+ * The account-read ports, by provider id.
+ *
+ * Derived from the adapters rather than assembled beside them, for the same
+ * reason capabilities are derived: a second list is a second thing to forget.
+ */
+function accountPortsOf(
+  adapters: readonly ProviderAdapter[],
+): ReadonlyMap<string, AccountReadPort> {
+  return new Map(
+    adapters.flatMap((adapter) =>
+      adapter.accounts === undefined
+        ? []
+        : [[adapter.providerId, adapter.accounts] as const],
+    ),
+  );
 }
 
 /**

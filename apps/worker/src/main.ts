@@ -16,6 +16,10 @@ import {
 } from "@baas/platform";
 import { createDatabase } from "@baas/persistence";
 import type { Database } from "@baas/persistence";
+import {
+  buildProviders,
+  refuseIncompleteProviders,
+} from "@baas/provider-registry";
 import { buildWorker } from "./bootstrap.js";
 
 /* c8 ignore start -- process wiring, exercised by running the app */
@@ -44,12 +48,19 @@ async function start(): Promise<void> {
     throw new Error(`no tenant row for slug "${slug}"`);
   }
 
+  const providers = buildProviders({
+    providers: config.tenants.get(slug)?.providers ?? {},
+    clock,
+  });
+  refuseIncompleteProviders(config.global.appEnv, providers);
+
   const worker = buildWorker({
     db,
     logger,
     clock,
     ids: new UuidV7Generator(),
     tenantId: tenant.id,
+    providers,
   });
 
   // An object rather than a `let`: the signal handler assigns from a closure,

@@ -82,6 +82,17 @@ export interface CapabilityRegistryOptions {
   readonly serviceName: string;
   readonly appEnv: "dev" | "stage" | "production";
   readonly adapters: readonly ProviderAdapter[];
+  /**
+   * Providers this **build** can construct, whether or not one was.
+   *
+   * Without it, "we support Ruya and you have not finished configuring it" and
+   * "this build has never heard of LuLu" both come out as `adapter_absent`,
+   * which collapses the one distinction the closed set of reasons exists to
+   * make: the first is a job for whoever holds the credentials, the second for
+   * whoever ships the code. Supplied by the composition root, which is the
+   * only layer permitted to know a provider by name.
+   */
+  readonly supportedProviders?: readonly string[];
   readonly deployment: ReadonlyMap<string, ProviderDeployment>;
   readonly tenants: readonly string[];
   readonly clock: Clock;
@@ -115,7 +126,10 @@ export class CapabilityRegistry {
    * the portal alike, so they cannot disagree.
    */
   status(providerId: string, operation?: Operation): CapabilityStatus {
-    if (!this.byProvider.has(providerId)) {
+    const supported =
+      this.byProvider.has(providerId) ||
+      (this.options.supportedProviders ?? []).includes(providerId);
+    if (!supported) {
       return { available: false, reason: "adapter_absent" };
     }
 
@@ -126,6 +140,11 @@ export class CapabilityRegistry {
     if (deployment?.configured !== true) {
       return { available: false, reason: "not_configured" };
     }
+    // Supported, configured, and still no adapter: not a configuration
+    // problem, so it must not be reported as one.
+    if (!this.byProvider.has(providerId)) {
+      return { available: false, reason: "adapter_absent" };
+    }
     if (
       operation !== undefined &&
       !this.operationsOf(providerId).includes(operation)
@@ -135,12 +154,28 @@ export class CapabilityRegistry {
     return { available: true };
   }
 
+  /**
+   * Every provider this deployment **declared**, plus every adapter this build
+   * has — not just the intersection.
+   *
+   * Correction C10: an earlier version iterated the adapters alone, so a
+   * declared provider whose adapter could not be built vanished from the
+   * report entirely. That made `not_configured` and `adapter_absent`
+   * unreachable in practice, and reproduced finding A1's actual symptom: a
+   * provider silently disappearing rather than saying why it is unavailable.
+   * Found by New-19, when a configured-but-incomplete provider reported
+   * nothing at all.
+   */
   report(): CapabilityReport {
+    const declared = new Set([
+      ...this.byProvider.keys(),
+      ...this.options.deployment.keys(),
+    ]);
     return {
       service: this.options.serviceName,
       appEnv: this.options.appEnv,
       tenants: [...this.options.tenants],
-      providers: [...this.byProvider.keys()].sort().map((provider) => {
+      providers: [...declared].sort().map((provider) => {
         const status = this.status(provider);
         return {
           provider,

@@ -1,11 +1,11 @@
 {
-  "name": "@baas/worker",
+  "name": "@baas/provider-registry",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Dispatcher, reconciler and leased scheduler. The only component that calls a provider for a write.",
+  "description": "Turns configuration into provider adapters. The only place that knows which settings each provider requires.",
   "baas": {
-    "layer": "app"
+    "layer": "composition"
   },
   "license": "UNLICENSED",
   "main": "./dist/index.js",
@@ -20,11 +20,11 @@
     "build": "tsc --build"
   },
   "dependencies": {
+    "@baas/application": "workspace:*",
     "@baas/domain": "workspace:*",
-    "@baas/persistence": "workspace:*",
     "@baas/platform": "workspace:*",
-    "kysely": "^0.27.5",
-    "@baas/provider-registry": "workspace:*"
+    "@baas/provider-keel": "workspace:*",
+    "@baas/provider-ruya": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

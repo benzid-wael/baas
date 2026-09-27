@@ -33,6 +33,11 @@ packages/
   platform/       infrastructure seams: clock, ids, config, logging, errors.
   contracts/      wire schemas -> types, validation, OpenAPI.
   persistence/    migrations, Kysely, outbox, inbox, idempotency.
+  provider-keel/  Keel adapter. Protocol only.
+  provider-ruya/  Ruya (TCS BaNCS) adapter. Protocol only.
+  application/    use cases. Framework-free.
+  provider-registry/  configuration in, adapters out. The only layer that
+                  knows a provider by name.
 apps/
   api/            HTTP transport and the guard chain.
   worker/         dispatcher, reconciler, scheduler.

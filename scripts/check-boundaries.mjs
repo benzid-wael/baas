@@ -43,6 +43,11 @@ const LAYER_RANK = {
   // a repository. An adapter that needs a database row is not an adapter.
   provider: 2,
   application: 3,
+  // Composition: the layer that is allowed to know concrete providers by name.
+  // It exists so that `apps/api` and `apps/worker` do not each build the same
+  // adapters from the same configuration, which is how two copies of a wiring
+  // rule drift apart.
+  composition: 4,
   app: 9,
   // System tests wire several apps together, which is the one legitimate
   // reason to import across the top layer. Nothing production may sit here.

@@ -17,6 +17,10 @@ import { createDatabase, loadMigrations, migrateUp } from "@baas/persistence";
 import type { Database, MigratableDatabase } from "@baas/persistence";
 import type { Kysely } from "kysely";
 import { join } from "node:path";
+import {
+  buildProviders,
+  refuseIncompleteProviders,
+} from "@baas/provider-registry";
 import { buildApiApplication } from "./bootstrap.js";
 
 /* c8 ignore start -- process wiring, exercised by running the app */
@@ -70,6 +74,16 @@ async function start(): Promise<void> {
     throw new Error(`no tenant row for slug "${slug}"`);
   }
 
+  // One tenant today, so one provider set. `refuseIncompleteProviders` throws
+  // in stage and production: a declared provider that cannot be built there is
+  // a deployment that would run silently inert (finding A8), and discovering
+  // that from a customer is worse than failing the deploy.
+  const providers = buildProviders({
+    providers: config.tenants.get(slug)?.providers ?? {},
+    clock,
+  });
+  refuseIncompleteProviders(config.global.appEnv, providers);
+
   const app = await buildApiApplication({
     config,
     db,
@@ -77,6 +91,7 @@ async function start(): Promise<void> {
     clock,
     ids: new UuidV7Generator(),
     tenantId: tenant.id,
+    providers,
   });
 
   const port = config.global.port;

@@ -1,5 +1,7 @@
 import { Duration } from "@baas/domain";
 import type { Clock, IdGenerator, TransactionReadPort } from "@baas/domain";
+import { adaptersOf } from "@baas/provider-registry";
+import type { ProviderBuildResult } from "@baas/provider-registry";
 import type { Logger } from "@baas/platform";
 import {
   AccountRepository,
@@ -22,8 +24,11 @@ export interface WorkerOptions {
   readonly clock: Clock;
   readonly ids: IdGenerator;
   readonly tenantId: string;
-  /** Provider adapters, by provider id. Empty until New-19. */
-  readonly providers?: ReadonlyMap<string, TransactionReadPort>;
+  /**
+   * What `buildProviders` made of the configuration. The same results the API
+   * receives, so the two cannot disagree about what is configured.
+   */
+  readonly providers?: readonly ProviderBuildResult[];
   readonly projectEvery?: Duration;
 }
 
@@ -47,7 +52,7 @@ export function buildWorker(options: WorkerOptions): WorkerHandle {
   const scope = new TenantScope(options.db);
   const accounts = new AccountRepository(options.clock, options.ids);
   const transactions = new TransactionRepository();
-  const providers = options.providers ?? new Map<string, TransactionReadPort>();
+  const providers = transactionPortsOf(options.providers ?? []);
 
   const projector = new TransactionProjector({
     scope,
@@ -93,6 +98,25 @@ export function buildWorker(options: WorkerOptions): WorkerHandle {
       jobs,
     }),
   };
+}
+
+/**
+ * The transaction-read ports, by provider id.
+ *
+ * Derived from the adapters rather than listed beside them: an adapter with no
+ * transaction port projects nothing, and saying so twice is one place to get
+ * it wrong.
+ */
+function transactionPortsOf(
+  results: readonly ProviderBuildResult[],
+): ReadonlyMap<string, TransactionReadPort> {
+  return new Map(
+    adaptersOf(results).flatMap((adapter) =>
+      adapter.transactions === undefined
+        ? []
+        : [[adapter.providerId, adapter.transactions] as const],
+    ),
+  );
 }
 
 /**

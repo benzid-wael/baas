@@ -20,9 +20,11 @@ import { buildRegistry } from "@baas/contracts";
 import {
   buildApiApplication,
   compareRoutes,
+  composeApi,
   mountedRoutes,
   registeredRoutes,
 } from "@baas/api";
+import { buildProviders } from "@baas/provider-registry";
 
 /**
  * The whole application, assembled the way the process assembles it (New-18).
@@ -301,5 +303,103 @@ describe("the assembled application", () => {
       .set({ "x-sc-client-id": "bff", "x-sc-client-secret": SECRET });
     // Operator role required, and an API client holds none.
     expect(graph.status).toBe(403);
+  });
+});
+
+/**
+ * What the capability report says about configuration (New-19).
+ *
+ * Asserted against the real composition rather than the registry in isolation,
+ * because the thing that went wrong in the incumbent (finding A1) was not the
+ * registry or the adapter — it was the join between them.
+ */
+describe("what the deployment says about its providers", () => {
+  function reportFor(
+    extra: NodeJS.ProcessEnv,
+  ): Promise<{ providers: { provider: string; reason?: string }[] }> {
+    const config = loadConfig(
+      {
+        ...environment(Number(new URL(harness.url).port)),
+        ...extra,
+      },
+      {},
+    );
+    const clock = new TestClock(START);
+    const graph = composeApi({
+      config,
+      db: harness.db,
+      logger: createLogger({
+        service: "e2e",
+        environment: "test",
+        level: "silent",
+      }),
+      clock,
+      ids: new SequenceIdGenerator(Array.from({ length: 20 }, () => uuidv7())),
+      tenantId,
+      providers: buildProviders({
+        providers: config.tenants.get(TENANT_SLUG)?.providers ?? {},
+        clock,
+      }),
+    });
+    return graph.dependencies.capabilities.capabilities() as Promise<{
+      providers: { provider: string; reason?: string }[];
+    }>;
+  }
+
+  it("reports a fully configured provider as available", async () => {
+    const report = await reportFor({
+      PROVIDERS: "ruya",
+      PROVIDER_RUYA_BASE_URL: "https://bancs.invalid",
+      PROVIDER_RUYA_CLIENT_ID: "id",
+      PROVIDER_RUYA_CLIENT_SECRET: "secret",
+      PROVIDER_RUYA_ENTITY: "AE",
+      PROVIDER_RUYA_LANGUAGE_CODE: "1",
+      PROVIDER_RUYA_USER_ID: "2",
+      PROVIDER_RUYA_CHANNEL_ID: "3",
+    });
+    expect(report.providers).toEqual([
+      {
+        provider: "ruya",
+        available: true,
+        operations: ["account.read", "transaction.read", "statement.read"],
+      },
+    ]);
+  });
+
+  it("distinguishes a provider missing a setting from one with no adapter", async () => {
+    // The two reasons are the whole point of the closed set: "never set up"
+    // and "this build does not know that provider" need different people.
+    const missing = await reportFor({
+      PROVIDERS: "ruya",
+      PROVIDER_RUYA_BASE_URL: "https://bancs.invalid",
+      PROVIDER_RUYA_CLIENT_ID: "id",
+      PROVIDER_RUYA_CLIENT_SECRET: "secret",
+      PROVIDER_RUYA_ENTITY: "AE",
+    });
+    expect(missing.providers).toEqual([
+      {
+        provider: "ruya",
+        available: false,
+        reason: "not_configured",
+        // No adapter was built, so it supplies no operations. The empty list
+        // is derived, not declared -- it cannot claim one it does not have.
+        operations: [],
+      },
+    ]);
+
+    const unknown = await reportFor({
+      PROVIDERS: "lulu",
+      PROVIDER_LULU_BASE_URL: "https://lulu.invalid",
+      PROVIDER_LULU_CLIENT_ID: "id",
+      PROVIDER_LULU_CLIENT_SECRET: "secret",
+    });
+    expect(unknown.providers).toEqual([
+      {
+        provider: "lulu",
+        available: false,
+        reason: "adapter_absent",
+        operations: [],
+      },
+    ]);
   });
 });

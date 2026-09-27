@@ -31,6 +31,9 @@
     },
     {
       "path": "../../packages/contracts"
+    },
+    {
+      "path": "../../packages/provider-registry"
     }
   ]
 }

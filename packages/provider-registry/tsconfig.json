@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "./src", "outDir": "./dist" },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../domain" },
+    { "path": "../platform" },
+    { "path": "../application" },
+    { "path": "../provider-keel" },
+    { "path": "../provider-ruya" }
+  ]
+}

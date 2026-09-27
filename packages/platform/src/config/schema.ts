@@ -165,11 +165,61 @@ export const globalSchema = z.object({
 
 export type GlobalConfig = z.infer<typeof globalSchema>;
 
+/**
+ * A provider's settings (New-19).
+ *
+ * Four fields are common to every provider and the rest are provider-specific
+ * optionals. That flatness is deliberate, and it is the *second* choice: the
+ * first was a discriminated union keyed on the provider name, which puts a
+ * list of known providers in the platform layer and makes adding one a schema
+ * change rather than a manifest change.
+ *
+ * The schema therefore does not know that Keel needs a signing key and Ruya
+ * needs an entity. **The provider registry does**, declares it beside the
+ * factory that needs it, and reports a missing one as `not_configured` — which
+ * is finding A1's rule: an adapter must not decide its own availability, the
+ * registry composes configuration and capability into one answer.
+ *
+ * Dev tolerates an incomplete provider and says so in the capability report.
+ * Stage and production refuse to start; see `refuseIncompleteProviders`.
+ */
 export const providerCredentialsSchema = z.object({
   provider: z.string().min(1),
   baseUrl: z.url(),
   clientId: z.string().min(1),
   clientSecret: z.string().min(1),
+  /**
+   * Every provider call is bounded. A read with no timeout is a read that can
+   * hold a request open until the client gives up, and the incumbent's balance
+   * reads have no ceiling at all.
+   */
+  httpTimeoutMs: z.coerce.number().int().min(100).max(120_000).default(10_000),
+
+  // -- Keel ----------------------------------------------------------------
+  /** Keel's OAuth token endpoint. Separate from `baseUrl`: they differ. */
+  accessTokenEndpoint: z.url().optional(),
+  /** PEM for the RSA request signature. Single-line base64 is decoded here. */
+  signingPrivateKeyPem: pem.optional(),
+  /** A pre-issued token, for a sandbox that does not run OAuth. */
+  bearerToken: z.string().min(1).optional(),
+
+  // -- Ruya (TCS BaNCS) ----------------------------------------------------
+  /**
+   * BaNCS demands these four on every call and answers unhelpfully without
+   * them, which is why they are settings rather than constants: getting one
+   * wrong produces an error that mentions none of them.
+   */
+  entity: z.string().min(1).optional(),
+  languageCode: z.coerce.number().int().optional(),
+  userId: z.coerce.number().int().optional(),
+  channelId: z.coerce.number().int().optional(),
+  tokenRefreshBufferSeconds: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(3_600)
+    .default(60),
+  maxRetries: z.coerce.number().int().min(0).max(5).default(2),
 });
 
 export type ProviderCredentials = z.infer<typeof providerCredentialsSchema>;

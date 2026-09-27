@@ -47,6 +47,9 @@ importers:
       '@baas/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      '@baas/provider-registry':
+        specifier: workspace:*
+        version: link:../../packages/provider-registry
       '@nestjs/common':
         specifier: ^11.0.1
         version: 11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -120,6 +123,9 @@ importers:
       '@baas/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      '@baas/provider-registry':
+        specifier: workspace:*
+        version: link:../../packages/provider-registry
       '@baas/provider-sim':
         specifier: workspace:*
         version: link:../provider-sim
@@ -199,6 +205,9 @@ importers:
       '@baas/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      '@baas/provider-registry':
+        specifier: workspace:*
+        version: link:../../packages/provider-registry
       kysely:
         specifier: ^0.27.5
         version: 0.27.6
@@ -339,6 +348,34 @@ importers:
       '@baas/platform':
         specifier: workspace:*
         version: link:../platform
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@24.19.0)
+
+  packages/provider-registry:
+    dependencies:
+      '@baas/application':
+        specifier: workspace:*
+        version: link:../application
+      '@baas/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@baas/platform':
+        specifier: workspace:*
+        version: link:../platform
+      '@baas/provider-keel':
+        specifier: workspace:*
+        version: link:../provider-keel
+      '@baas/provider-ruya':
+        specifier: workspace:*
+        version: link:../provider-ruya
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

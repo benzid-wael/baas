@@ -4,6 +4,7 @@ import type { Kysely } from "kysely";
 import type { Clock, IdGenerator } from "@baas/domain";
 import type { Config, Logger } from "@baas/platform";
 import type { Database } from "@baas/persistence";
+import type { ProviderBuildResult } from "@baas/provider-registry";
 import { AppModule } from "./app.module.js";
 import { composeApi } from "./composition.js";
 
@@ -14,6 +15,7 @@ export interface BootstrapOptions {
   readonly clock: Clock;
   readonly ids: IdGenerator;
   readonly tenantId: string;
+  readonly providers?: readonly ProviderBuildResult[];
 }
 
 /**

@@ -62,15 +62,27 @@ curl http://$BAAS_HOST:3000/system/ready
 migration ledger: it reports ready only when the tables are the tables the
 code declares, so a half-applied migration fails it (finding C1).
 
-Two things the full loop does **not** do yet:
+`/system/capabilities` says which providers are on and why. With `PROVIDERS=`
+unset there are none, and that is reported rather than hidden. Set
+`PROVIDERS=keel,ruya` and fill in the `PROVIDER_*` keys from `.env.example` to
+get live adapters; a provider named there with a required setting missing
+reports `not_configured` in dev and **refuses to boot** in stage and
+production.
 
-- **No provider adapter is wired**, so `/system/capabilities` reports an empty
-  provider list and every balance reads as unavailable. Wiring Keel and Ruya
-  from configuration is New-19.
-- **Webhook ingress is not mounted**, so `provider-sim` delivering a callback
-  gets a 404. The controller exists; the signature verifier it needs does not,
-  and inventing a scheme no partner agreed to would be worse than the 404. Also
-  New-19.
+Four reasons, and they mean different things to different people:
+
+| Reason                      | What it means                              |
+| --------------------------- | ------------------------------------------ |
+| `adapter_absent`            | this build cannot construct that provider  |
+| `not_configured`            | it can, and a setting is missing           |
+| `disabled_by_configuration` | turned off deliberately                    |
+| `operation_not_implemented` | the adapter supplies no port for that call |
+
+The first two are the pair worth keeping apart: one is a job for whoever holds
+the credentials, the other for whoever ships the code.
+
+One thing the full loop does **not** do yet: **webhook ingress is not
+mounted**, so `provider-sim` delivering a callback gets a 404. See New-21.
 
 ## The tests need none of this
 
