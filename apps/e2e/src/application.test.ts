@@ -75,7 +75,6 @@ function environment(databasePort: number): NodeJS.ProcessEnv {
     OIDC_AUDIENCE: "baas-portal",
     OIDC_JWKS_URI: "https://idp.test/jwks",
     PROVIDER_CREDENTIAL_ENCRYPTION_KEY: "test-only-key-of-sufficient-length!",
-    CALLBACK_HMAC_SECRET: "test-only-hmac-of-sufficient-length",
     BOOTSTRAP_TENANT_SLUG: TENANT_SLUG,
   };
 }
@@ -221,10 +220,24 @@ describe("the assembled application", () => {
           "GET /system/version",
           "POST /operator/sessions",
           "DELETE /operator/sessions/current",
+          // Partner ingress. Not a client surface, and the partner contract
+          // is the partner's document, not ours.
+          "POST /webhooks/{provider}",
         ],
       },
     );
     expect(drift.mountedButUnregistered).toEqual([]);
+  });
+
+  it("mounts webhook ingress", async () => {
+    // No credential and no signature: recorded as unverified, answered 202.
+    // The route existing at all is what this asserts -- it was unmounted
+    // until New-21, so a partner pointed here would have got a 404.
+    const response = await request(server())
+      .post("/webhooks/keel")
+      .set({ "content-type": "application/json" })
+      .send(JSON.stringify({ eventId: "x" }));
+    expect(response.status).toBe(202);
   });
 
   it("serves health without a credential", async () => {

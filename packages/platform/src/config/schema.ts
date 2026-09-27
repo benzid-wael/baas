@@ -155,8 +155,6 @@ export const globalSchema = z.object({
   oidc: oidcSchema,
   /** Encrypts provider credentials at rest (AES-256-GCM). */
   providerCredentialEncryptionKey: secret,
-  /** Verifies inbound provider callbacks. */
-  callbackHmacSecret: secret,
   bootstrapTenantSlug: z
     .string()
     .regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/)
@@ -220,6 +218,20 @@ export const providerCredentialsSchema = z.object({
     .max(3_600)
     .default(60),
   maxRetries: z.coerce.number().int().min(0).max(5).default(2),
+
+  // -- inbound callbacks ---------------------------------------------------
+  /**
+   * How this provider's callbacks are authenticated (New-21).
+   *
+   * These replaced a single global `CALLBACK_HMAC_SECRET`, which could not
+   * work: Keel signs with a private key and we verify with its **public key**,
+   * while Ruya signs with a **shared secret**. Those are not the same kind of
+   * thing, and one setting holding either would have to be interpreted
+   * differently per provider — the ambiguity that makes a credential get
+   * pasted into the wrong slot.
+   */
+  webhookPublicKeyPem: pem.optional(),
+  callbackHmacSecret: secret.optional(),
 });
 
 export type ProviderCredentials = z.infer<typeof providerCredentialsSchema>;
@@ -320,12 +332,29 @@ export function applyTierContract(
 
   for (const [path, key] of [
     [["providerCredentialEncryptionKey"], "PROVIDER_CREDENTIAL_ENCRYPTION_KEY"],
-    [["callbackHmacSecret"], "CALLBACK_HMAC_SECRET"],
     [["database", "password"], "DATABASE_PASSWORD"],
   ] as const) {
     const value = env[key];
     if (value !== undefined && looksLikePlaceholder(value)) {
       addIssue(path, `${appEnv} refuses a placeholder value in ${key}`);
+    }
+  }
+
+  // Provider secrets are named per provider, so the placeholder rule has to be
+  // generic. It was previously written out key by key, which meant a new
+  // secret was unprotected until somebody remembered to add a line.
+  for (const key of Object.keys(env)) {
+    if (
+      !/^PROVIDER_[A-Z0-9_]+_(CLIENT_SECRET|CALLBACK_HMAC_SECRET)$/.test(key)
+    ) {
+      continue;
+    }
+    const value = env[key];
+    if (value !== undefined && looksLikePlaceholder(value)) {
+      addIssue(
+        ["tenants", "providers", key],
+        `${appEnv} refuses a placeholder value in ${key}`,
+      );
     }
   }
 }

@@ -141,3 +141,51 @@ export interface StatementReadPort {
     readonly accountReference: string;
   }): Promise<readonly ProviderStatement[]>;
 }
+
+/**
+ * What a provider's callback turned out to be (New-21).
+ *
+ * Three nullable fields rather than three optional ones: a provider that sends
+ * no event id is a fact about that provider, and `null` records it. `undefined`
+ * would read as "we did not look".
+ */
+export interface InboundEventShape {
+  /** The provider's own id for this delivery, if it sends one. Dedup key. */
+  readonly externalEventId: string | null;
+  readonly eventType: string | null;
+  /** The provider's reference for whatever the event is about. */
+  readonly providerRef: string | null;
+}
+
+/**
+ * Authenticating an inbound provider callback (New-21).
+ *
+ * A port rather than a class because the two halves live in different layers:
+ * the transport edge knows nothing about a provider, and the implementation
+ * knows nothing about HTTP.
+ *
+ * `verify` takes the **raw body as the partner sent it**, not a re-serialised
+ * object. Both partner schemes sign the exact bytes, and `JSON.stringify` of a
+ * parsed body is free to differ in key order, whitespace and unicode escaping
+ * — so a verifier handed a re-serialisation rejects every genuine delivery,
+ * silently and only in the environment where a real partner exists.
+ */
+export interface WebhookVerifier {
+  /**
+   * Which tenant a provider's callback belongs to, resolved from
+   * configuration. `undefined` for a provider this deployment does not serve.
+   */
+  tenantFor(providerId: string): string | undefined;
+
+  verify(
+    providerId: string,
+    rawBody: string,
+    headers: Readonly<Record<string, string | undefined>>,
+  ): boolean;
+
+  interpret(
+    providerId: string,
+    payload: unknown,
+    headers: Readonly<Record<string, string | undefined>>,
+  ): InboundEventShape;
+}

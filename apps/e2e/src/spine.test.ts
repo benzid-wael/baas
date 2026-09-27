@@ -17,12 +17,12 @@ import { Inbox, Outbox } from "@baas/persistence";
 import { startDatabase } from "@baas/persistence/testing";
 import type { DatabaseHarness } from "@baas/persistence/testing";
 import { uuidv7 } from "uuidv7";
-import { Simulator, signKeel } from "@baas/provider-sim";
+import { Simulator } from "@baas/provider-sim";
 import type { SimRoute } from "@baas/provider-sim";
 import { Dispatcher } from "@baas/worker";
 import { Reconciler } from "@baas/worker";
 import { WEBHOOK_INBOX, WEBHOOK_VERIFIER, WebhookController } from "@baas/api";
-import type { WebhookVerifier } from "@baas/api";
+import { buildWebhookVerifier } from "@baas/provider-registry";
 
 /**
  * The spine, end to end (finding C2, finding A7).
@@ -44,11 +44,12 @@ const logger = createLogger({
 const START = parseInstant("2026-09-26T12:00:00.000Z");
 const TENANT = uuidv7();
 
-const { privateKey: KEEL_KEY } = generateKeyPairSync("rsa", {
-  modulusLength: 2048,
-  publicKeyEncoding: { type: "spki", format: "pem" },
-  privateKeyEncoding: { type: "pkcs8", format: "pem" },
-});
+const { privateKey: KEEL_KEY, publicKey: KEEL_PUBLIC_KEY } =
+  generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "pem" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
 
 let harness: DatabaseHarness;
 let app: INestApplication;
@@ -76,23 +77,30 @@ const PAYOUT_ROUTE: SimRoute = {
   }),
 };
 
-const verifier: WebhookVerifier = {
-  verify: (_provider, rawBody, headers) =>
-    headers["x-digital-signature"] === signKeel(rawBody, KEEL_KEY),
-  tenantFor: (provider) => (provider === "keel" ? TENANT : undefined),
-  interpret: (payload) => {
-    const event = payload as {
-      eventId?: string;
-      eventType?: string;
-      reference?: string;
-    };
-    return {
-      externalEventId: event.eventId ?? null,
-      eventType: event.eventType ?? null,
-      providerRef: event.reference ?? null,
-    };
+/**
+ * The **real** verifier, not a stand-in (New-21).
+ *
+ * This is the assertion that matters here: bytes the simulator signs with
+ * Keel's scheme are bytes the production verifier accepts. A hand-rolled
+ * double in this position would have agreed with itself and told us nothing —
+ * which is what it did until the real one existed.
+ */
+const verifier = buildWebhookVerifier({
+  providers: {
+    keel: {
+      provider: "keel",
+      baseUrl: "https://keel.invalid",
+      clientId: "id",
+      clientSecret: "secret",
+      httpTimeoutMs: 10_000,
+      tokenRefreshBufferSeconds: 60,
+      maxRetries: 2,
+      webhookPublicKeyPem: KEEL_PUBLIC_KEY,
+    },
   },
-};
+  tenantId: TENANT,
+  logger,
+});
 
 beforeAll(async () => {
   harness = await startDatabase({
@@ -131,7 +139,13 @@ beforeAll(async () => {
   })
   class WebhookModule {}
 
-  app = await NestFactory.create(WebhookModule, { logger: false });
+  // `rawBody: true` is what makes `request.rawBody` present. Without it the
+  // route refuses every delivery, which is the point: a signature check
+  // against a re-serialised body is not a signature check.
+  app = await NestFactory.create(WebhookModule, {
+    logger: false,
+    rawBody: true,
+  });
   await app.init();
 }, 120_000);
 

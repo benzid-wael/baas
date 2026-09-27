@@ -10,7 +10,11 @@ export const SECRET_ENV_KEYS = [
   "DATABASE_PASSWORD",
   "PROVIDER_CREDENTIAL_ENCRYPTION_KEY",
   "MOBILE_ASSERTION_PUBLIC_KEY",
-  "CALLBACK_HMAC_SECRET",
+  // `CALLBACK_HMAC_SECRET` was here until New-21. It is now per provider
+  // (`PROVIDER_<NAME>_CALLBACK_HMAC_SECRET`) and therefore not a fixed key
+  // name; the placeholder rule in the tier contract matches it by pattern
+  // instead, so a new provider's secret is protected the day it is added
+  // rather than the day someone remembers to list it.
 ] as const;
 
 export type SecretEnvKey = (typeof SECRET_ENV_KEYS)[number];

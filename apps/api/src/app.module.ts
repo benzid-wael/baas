@@ -37,6 +37,19 @@ import type {
   ReadAccounts,
   ReadTransactions,
 } from "@baas/application";
+import type { Inbox } from "@baas/persistence";
+import type { WebhookVerifier } from "@baas/domain";
+import {
+  WEBHOOK_INBOX,
+  WEBHOOK_VERIFIER,
+  WebhookController,
+} from "./webhook.controller.js";
+
+/** Inbound provider callbacks. Supplied by the composition root. */
+export interface WebhookIngress {
+  readonly inbox: Inbox;
+  readonly verifier: WebhookVerifier;
+}
 
 /** The read surfaces. Supplied by the composition root; see the note below. */
 export interface ReadSurfaces {
@@ -64,6 +77,8 @@ export interface ApiDependencies {
   readonly reads?: ReadSurfaces;
   /** Operator sign-in. Same rule as `reads`. */
   readonly operatorSessions?: OperatorSessionDeps;
+  /** Webhook ingress. Same rule as `reads`. */
+  readonly webhooks?: WebhookIngress;
   /** Test-only: mounts a controller that declares no policy, to prove refusal. */
   readonly mountUnguardedProbe?: boolean;
 }
@@ -92,6 +107,7 @@ export class AppModule {
   static withDependencies(deps: ApiDependencies): DynamicModule {
     const reads = deps.reads;
     const sessions = deps.operatorSessions;
+    const webhooks = deps.webhooks;
     return {
       module: AppModule,
       controllers: [
@@ -100,6 +116,7 @@ export class AppModule {
           ? []
           : [MobileReadController, PlatformReadController]),
         ...(sessions === undefined ? [] : [OperatorSessionController]),
+        ...(webhooks === undefined ? [] : [WebhookController]),
         ...(deps.mountUnguardedProbe === true ? [UnguardedController] : []),
       ],
       providers: [
@@ -114,6 +131,12 @@ export class AppModule {
         ...(sessions === undefined
           ? []
           : [{ provide: OPERATOR_SESSIONS, useValue: sessions }]),
+        ...(webhooks === undefined
+          ? []
+          : [
+              { provide: WEBHOOK_INBOX, useValue: webhooks.inbox },
+              { provide: WEBHOOK_VERIFIER, useValue: webhooks.verifier },
+            ]),
         {
           provide: APP_GUARD,
           inject: [Reflector],

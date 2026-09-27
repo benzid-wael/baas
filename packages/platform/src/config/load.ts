@@ -137,7 +137,6 @@ function shapeGlobal(env: NodeJS.ProcessEnv, appEnv: string): unknown {
       bootstrapAdminSubjects: env["OPERATOR_BOOTSTRAP_ADMIN_SUBJECTS"],
     },
     providerCredentialEncryptionKey: env["PROVIDER_CREDENTIAL_ENCRYPTION_KEY"],
-    callbackHmacSecret: env["CALLBACK_HMAC_SECRET"],
     bootstrapTenantSlug: env["BOOTSTRAP_TENANT_SLUG"],
   };
 }
@@ -183,6 +182,8 @@ function shapeTenants(
       channelId: env[`${prefix}_CHANNEL_ID`],
       tokenRefreshBufferSeconds: env[`${prefix}_TOKEN_REFRESH_BUFFER_SECONDS`],
       maxRetries: env[`${prefix}_MAX_RETRIES`],
+      webhookPublicKeyPem: env[`${prefix}_WEBHOOK_PUBLIC_KEY`],
+      callbackHmacSecret: env[`${prefix}_CALLBACK_HMAC_SECRET`],
     };
   }
 

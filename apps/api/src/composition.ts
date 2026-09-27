@@ -7,6 +7,7 @@ import {
   AuditRepository,
   BalanceRepository,
   CustomerRepository,
+  Inbox,
   OperatorRepository,
   TenantScope,
   TransactionRepository,
@@ -21,7 +22,11 @@ import {
   ReadTransactions,
 } from "@baas/application";
 import type { ProviderAdapter, ProviderDeployment } from "@baas/application";
-import { KNOWN_PROVIDERS, adaptersOf } from "@baas/provider-registry";
+import {
+  KNOWN_PROVIDERS,
+  adaptersOf,
+  buildWebhookVerifier,
+} from "@baas/provider-registry";
 import type { ProviderBuildResult } from "@baas/provider-registry";
 import { describeError, formatInstant } from "@baas/platform";
 import type { CapabilityProvider } from "./system.controller.js";
@@ -131,6 +136,16 @@ export function composeApi(options: ComposeApiOptions): ApiGraph {
           readBalance,
           audit,
         ),
+      },
+      webhooks: {
+        inbox: new Inbox(db, clock, ids),
+        verifier: buildWebhookVerifier({
+          providers:
+            config.tenants.get(config.global.bootstrapTenantSlug)?.providers ??
+            {},
+          tenantId,
+          logger,
+        }),
       },
       operatorSessions: {
         verifier: new OidcVerifier(

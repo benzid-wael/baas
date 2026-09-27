@@ -11,7 +11,6 @@ const DEV_ENV: NodeJS.ProcessEnv = {
   MOBILE_ASSERTION_ISSUER: "https://bff.local",
   MOBILE_ASSERTION_AUDIENCE: "baas",
   PROVIDER_CREDENTIAL_ENCRYPTION_KEY: VALID_SECRET,
-  CALLBACK_HMAC_SECRET: VALID_SECRET,
 };
 
 function run(env: NodeJS.ProcessEnv): { code: number; output: string } {

@@ -81,8 +81,36 @@ Four reasons, and they mean different things to different people:
 The first two are the pair worth keeping apart: one is a job for whoever holds
 the credentials, the other for whoever ships the code.
 
-One thing the full loop does **not** do yet: **webhook ingress is not
-mounted**, so `provider-sim` delivering a callback gets a 404. See New-21.
+### Partner callbacks
+
+`POST /webhooks/:provider` is mounted and verifies signatures. Both schemes are
+the partners' own, reproduced by `provider-sim`, so a delivery the simulator
+signs is a delivery a partner could have sent:
+
+| Provider | Header                      | Scheme                                                                                         |
+| -------- | --------------------------- | ---------------------------------------------------------------------------------------------- |
+| Keel     | `X-Digital-Signature`       | base64 RSA-SHA256 over the raw body, verified with `PROVIDER_KEEL_WEBHOOK_PUBLIC_KEY`          |
+| Ruya     | `X-Ruya-Callback-Signature` | `sha256=<hex>` or bare hex HMAC-SHA256 over the raw body, `PROVIDER_RUYA_CALLBACK_HMAC_SECRET` |
+
+Four behaviours worth knowing before you debug one:
+
+- **Everything gets a 202**, including a bad signature. A partner that retries
+  on a non-2xx would retry a bad signature forever, and telling it the
+  signature was wrong tells an attacker the same thing. **Look at
+  `provider_inbox.signature_verified`, not at the status code.**
+- **A rejected delivery is still recorded.** Rejected traffic is the evidence
+  that someone is probing, and it is what distinguishes a misconfigured partner
+  from a silent one.
+- **Missing credential means everything is rejected, not accepted.** There is
+  no setting that turns verification off.
+- **A provider this deployment holds no credentials for is answered 202 and
+  recorded nowhere.** Telling a caller which provider ids exist is free
+  reconnaissance.
+
+The signature is over the **exact bytes** the partner sent, which is why the
+application is created with `rawBody: true`. Anything in front of it that
+re-serialises a body — a proxy that pretty-prints JSON, say — breaks every
+delivery, and does so only where a real partner exists.
 
 ## The tests need none of this
 

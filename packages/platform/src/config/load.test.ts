@@ -15,7 +15,6 @@ function devEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     MOBILE_ASSERTION_ISSUER: "https://bff.dev.superchat.internal",
     MOBILE_ASSERTION_AUDIENCE: "baas",
     PROVIDER_CREDENTIAL_ENCRYPTION_KEY: VALID_SECRET,
-    CALLBACK_HMAC_SECRET: VALID_SECRET,
     ...overrides,
   };
 }
@@ -99,7 +98,6 @@ describe("no secret has a default", () => {
     const paths = issuesFrom({ APP_ENV: "dev" });
     expect(paths).toContain("database.password");
     expect(paths).toContain("providerCredentialEncryptionKey");
-    expect(paths).toContain("callbackHmacSecret");
     expect(paths).toContain("mobileAssertion.publicKey");
   });
 });
@@ -192,11 +190,39 @@ describe("the production contract", () => {
   it("refuses a placeholder secret in a hardened tier but not in dev", () => {
     const placeholder = "insecure-placeholder-value-for-dev!!";
     expect(
-      issuesFrom(hardenedEnv({ CALLBACK_HMAC_SECRET: placeholder })),
-    ).toContain("callbackHmacSecret");
+      issuesFrom(
+        hardenedEnv({ PROVIDER_CREDENTIAL_ENCRYPTION_KEY: placeholder }),
+      ),
+    ).toContain("providerCredentialEncryptionKey");
     expect(() =>
-      loadConfig(devEnv({ CALLBACK_HMAC_SECRET: placeholder })),
+      loadConfig(devEnv({ PROVIDER_CREDENTIAL_ENCRYPTION_KEY: placeholder })),
     ).not.toThrow();
+  });
+
+  it("refuses a placeholder in a PROVIDER secret it has never been told about", () => {
+    // The rule is a pattern, not a list (New-21). A provider added tomorrow is
+    // covered the day it is added, rather than the day somebody remembers to
+    // add a line to the contract.
+    const paths = issuesFrom(
+      hardenedEnv({
+        PROVIDERS: "keel,lulu",
+        PROVIDER_LULU_BASE_URL: "https://lulu.example",
+        PROVIDER_LULU_CLIENT_ID: "id",
+        PROVIDER_LULU_CLIENT_SECRET: "changeme-not-a-real-secret-at-all",
+      }),
+    );
+    expect(paths).toContain("tenants.providers.PROVIDER_LULU_CLIENT_SECRET");
+  });
+
+  it("refuses a placeholder callback secret too", () => {
+    expect(
+      issuesFrom(
+        hardenedEnv({
+          PROVIDER_KEEL_CALLBACK_HMAC_SECRET:
+            "changeme-placeholder-hmac-32-char",
+        }),
+      ),
+    ).toContain("tenants.providers.PROVIDER_KEEL_CALLBACK_HMAC_SECRET");
   });
 
   it("still reports the tier contract when a field also fails validation", () => {
@@ -205,12 +231,12 @@ describe("the production contract", () => {
     // learned one rule per restart.
     const paths = issuesFrom(
       hardenedEnv({
-        CALLBACK_HMAC_SECRET: "short",
+        PROVIDER_CREDENTIAL_ENCRYPTION_KEY: "short",
         DATABASE_SSL: "false",
         THROTTLE_STORAGE: "memory",
       }),
     );
-    expect(paths).toContain("callbackHmacSecret");
+    expect(paths).toContain("providerCredentialEncryptionKey");
     expect(paths).toContain("database.ssl");
     expect(paths).toContain("throttle.storage");
   });
