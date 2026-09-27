@@ -1,0 +1,194 @@
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Inject,
+  NotFoundException,
+  Param,
+  Query,
+  Req,
+} from "@nestjs/common";
+import { fromMoney } from "@baas/contracts";
+import type { AccountWire, TransactionWire } from "@baas/contracts";
+import type { OperatorAccountView, OperatorReads } from "@baas/application";
+import type { ProjectedTransaction } from "@baas/persistence";
+import { formatInstant, fromJsDate } from "@baas/platform";
+import { OperatorSurface, Roles } from "./decorators.js";
+import { toBalanceWire } from "./wire.js";
+import { principalOf } from "./principal.js";
+import type { RequestWithPrincipal } from "./principal.js";
+
+export const OPERATOR_READS = "baas:OperatorReads";
+
+const MAX_PAGE = 200;
+const DEFAULT_PAGE = 50;
+
+/**
+ * The operator read surface (MP-4).
+ *
+ * Deliberately a different controller from the mobile one, not the same
+ * handlers behind a different guard: an operator reads any customer in the
+ * tenant, and sharing a handler is how that authority leaks the first time
+ * someone adds a parameter.
+ */
+@Controller("platform")
+export class PlatformReadController {
+  constructor(@Inject(OPERATOR_READS) private readonly reads: OperatorReads) {}
+
+  /**
+   * Find a customer by **one** exact identifier.
+   *
+   * No listing and no prefix search. A console that pages through every
+   * customer, or probes an identifier a character at a time, is an extraction
+   * tool. Browsing may be worth adding; it should be a decision rather than a
+   * side effect of a convenient query.
+   */
+  @Get("customers")
+  @OperatorSurface()
+  @Roles("operator", "admin")
+  async findCustomer(
+    @Req() request: RequestWithPrincipal,
+    @Query("externalUserUuid") externalUserUuid?: string,
+    @Query("accountReference") accountReference?: string,
+  ): Promise<unknown> {
+    const { tenantId, actor } = operator(request);
+
+    if ((externalUserUuid === undefined) === (accountReference === undefined)) {
+      throw new BadRequestException(
+        "supply exactly one of externalUserUuid or accountReference",
+      );
+    }
+
+    const found =
+      externalUserUuid === undefined
+        ? await this.reads.findCustomerByAccountReference(
+            tenantId,
+            actor,
+            accountReference ?? "",
+          )
+        : await this.reads.findCustomerByExternalUuid(
+            tenantId,
+            actor,
+            externalUserUuid,
+          );
+
+    if (found === undefined) {
+      throw new NotFoundException("no such customer");
+    }
+    return {
+      customerId: found.customerId,
+      externalUserUuid: found.externalUserUuid,
+      providers: found.links.map((link) => ({
+        providerId: link.providerId,
+        status: link.status,
+        statusReason: link.statusReason,
+        observedAt: formatInstant(fromJsDate(link.observedAt)),
+      })),
+    };
+  }
+
+  @Get("customers/:customerId/accounts")
+  @OperatorSurface()
+  @Roles("operator", "admin")
+  async accounts(
+    @Req() request: RequestWithPrincipal,
+    @Param("customerId") customerId: string,
+  ): Promise<{ accounts: AccountWire[] }> {
+    const { tenantId, actor } = operator(request);
+    const views = await this.reads.accountsOf(tenantId, actor, customerId);
+    return { accounts: views.map(toAccountWire) };
+  }
+
+  @Get("accounts/:accountReference/transactions")
+  @OperatorSurface()
+  @Roles("operator", "admin")
+  async transactions(
+    @Req() request: RequestWithPrincipal,
+    @Param("accountReference") accountReference: string,
+    @Query("limit") limit?: string,
+    @Query("cursor") cursor?: string,
+  ): Promise<{ items: TransactionWire[]; nextCursor?: string }> {
+    const { tenantId, actor } = operator(request);
+    const page = await this.reads.transactionsOf(
+      tenantId,
+      actor,
+      accountReference,
+      {
+        limit: pageSize(limit),
+        ...(cursor === undefined ? {} : { cursor }),
+      },
+    );
+    if (page === undefined) {
+      // Plainly "no such account", not the mobile surface's deliberate
+      // ambiguity: reading another customer's data is this role's job, so
+      // there is no existence to protect.
+      throw new NotFoundException("no such account");
+    }
+    return {
+      items: page.transactions.map((transaction) =>
+        toTransactionWire(transaction, accountReference),
+      ),
+      ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+    };
+  }
+}
+
+function operator(request: RequestWithPrincipal): {
+  tenantId: string;
+  actor: { operatorId: string };
+} {
+  const principal = principalOf(request);
+  /* c8 ignore next 3 -- OperatorSessionGuard has already refused this case */
+  if (principal?.operatorId === undefined) {
+    throw new NotFoundException();
+  }
+  return {
+    tenantId: principal.tenantId,
+    actor: { operatorId: principal.operatorId },
+  };
+}
+
+function pageSize(raw: string | undefined): number {
+  const parsed = Number(raw ?? DEFAULT_PAGE);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return DEFAULT_PAGE;
+  }
+  return Math.min(parsed, MAX_PAGE);
+}
+
+function toAccountWire(view: OperatorAccountView): AccountWire {
+  const { account } = view;
+  return {
+    accountReference: account.accountReference,
+    providerId: account.providerId,
+    product: account.product,
+    currency: account.currency,
+    status: account.status,
+    statusReason: account.statusReason,
+    iban: account.iban,
+    accountNumber: account.accountNumber,
+    sortCode: account.sortCode,
+    bic: account.bic,
+    openedAt:
+      account.openedAt === null
+        ? null
+        : formatInstant(fromJsDate(account.openedAt)),
+    balance: toBalanceWire(view.balance),
+  };
+}
+
+function toTransactionWire(
+  transaction: ProjectedTransaction,
+  accountReference: string,
+): TransactionWire {
+  return {
+    transactionReference: transaction.transactionReference,
+    accountReference,
+    direction: transaction.direction,
+    amount: fromMoney(transaction.amount),
+    status: transaction.status,
+    counterpartyName: transaction.counterpartyName,
+    narrative: transaction.narrative,
+    occurredAt: formatInstant(transaction.occurredAt),
+  };
+}

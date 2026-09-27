@@ -82,6 +82,9 @@ describe("the published registry", () => {
       "/mobile/accounts",
       "/mobile/accounts/{accountReference}",
       "/mobile/accounts/{accountReference}/transactions",
+      "/platform/accounts/{accountReference}/transactions",
+      "/platform/customers",
+      "/platform/customers/{customerId}/accounts",
     ]);
   });
 });

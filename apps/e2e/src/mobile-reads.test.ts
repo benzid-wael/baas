@@ -374,14 +374,14 @@ describe("the guard chain still applies", () => {
 });
 
 describe("routes and the published contract agree (New-12)", () => {
-  it("has no drift in either direction", () => {
-    const mismatch = compareRoutes(
-      mountedRoutes(app),
-      registeredRoutes(buildRegistry()),
-    );
-    expect(mismatch).toEqual({
-      mountedButUnregistered: [],
-      registeredButUnmounted: [],
-    });
+  it("documents every route this module mounts", () => {
+    // Only one direction here. This module mounts the mobile controller and
+    // the registry describes the whole application, so `registeredButUnmounted`
+    // is meaningless in a partial fixture. The both-directions check belongs
+    // to the assembled application, which has no entrypoint yet — New-18.
+    expect(
+      compareRoutes(mountedRoutes(app), registeredRoutes(buildRegistry()))
+        .mountedButUnregistered,
+    ).toEqual([]);
   });
 });

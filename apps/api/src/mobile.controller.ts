@@ -7,13 +7,8 @@ import {
   Query,
   Req,
 } from "@nestjs/common";
-import type { BalanceView } from "@baas/domain";
 import { fromMoney } from "@baas/contracts";
-import type {
-  AccountWire,
-  BalanceWire,
-  TransactionWire,
-} from "@baas/contracts";
+import type { AccountWire, TransactionWire } from "@baas/contracts";
 import type {
   AccountView,
   ReadAccounts,
@@ -21,6 +16,7 @@ import type {
 } from "@baas/application";
 import type { ProjectedTransaction } from "@baas/persistence";
 import { formatInstant, fromJsDate } from "@baas/platform";
+import { toBalanceWire } from "./wire.js";
 import { MobileSurface, Scopes } from "./decorators.js";
 import { principalOf } from "./principal.js";
 import type { Principal, RequestWithPrincipal } from "./principal.js";
@@ -155,22 +151,6 @@ function toAccountWire(view: AccountView): AccountWire {
         ? null
         : formatInstant(fromJsDate(account.openedAt)),
     balance: toBalanceWire(view.balance),
-  };
-}
-
-function toBalanceWire(balance: BalanceView): BalanceWire {
-  if (balance.kind === "unavailable") {
-    return { kind: "unavailable", reason: balance.reason };
-  }
-  return {
-    kind: "observed",
-    available: fromMoney(balance.available),
-    current: fromMoney(balance.current),
-    observedAt: formatInstant(balance.observedAt),
-    // Seconds, floored, and never negative: a clock that has moved backwards
-    // must not surface as a balance from the future.
-    ageSeconds: Math.max(0, Math.floor(balance.age.milliseconds / 1000)),
-    fresh: balance.fresh,
   };
 }
 

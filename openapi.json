@@ -88,6 +88,83 @@
           }
         }
       }
+    },
+    "/platform/accounts/{accountReference}/transactions": {
+      "get": {
+        "operationId": "operatorListTransactions",
+        "summary": "Any account's transactions. Audited.",
+        "responses": {
+          "200": {
+            "description": "A page of transactions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/customers": {
+      "get": {
+        "operationId": "findCustomer",
+        "summary": "Find one customer by an exact identifier. No listing, no prefix search.",
+        "responses": {
+          "200": {
+            "description": "The customer and their provider links"
+          },
+          "400": {
+            "description": "Supply exactly one identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such customer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/customers/{customerId}/accounts": {
+      "get": {
+        "operationId": "operatorListAccounts",
+        "summary": "Any customer's accounts, with balances. Audited.",
+        "responses": {
+          "200": {
+            "description": "The customer's accounts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountList"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

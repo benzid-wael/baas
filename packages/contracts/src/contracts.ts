@@ -101,6 +101,46 @@ export function buildRegistry(): ContractRegistry {
         },
       },
     })
+    .path("/platform/customers", {
+      get: {
+        operationId: "findCustomer",
+        summary:
+          "Find one customer by an exact identifier. No listing, no prefix search.",
+        responses: {
+          "200": { description: "The customer and their provider links" },
+          "400": {
+            description: "Supply exactly one identifier",
+            schema: "ErrorResponse",
+          },
+          "404": { description: "No such customer", schema: "ErrorResponse" },
+        },
+      },
+    })
+    .path("/platform/customers/{customerId}/accounts", {
+      get: {
+        operationId: "operatorListAccounts",
+        summary: "Any customer's accounts, with balances. Audited.",
+        responses: {
+          "200": {
+            description: "The customer's accounts",
+            schema: "AccountList",
+          },
+        },
+      },
+    })
+    .path("/platform/accounts/{accountReference}/transactions", {
+      get: {
+        operationId: "operatorListTransactions",
+        summary: "Any account's transactions. Audited.",
+        responses: {
+          "200": {
+            description: "A page of transactions",
+            schema: "TransactionPage",
+          },
+          "404": { description: "No such account", schema: "ErrorResponse" },
+        },
+      },
+    })
     .path("/mobile/accounts/{accountReference}/transactions", {
       get: {
         operationId: "listTransactions",
