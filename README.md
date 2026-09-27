@@ -42,8 +42,16 @@ apps/
   api/            HTTP transport and the guard chain.
   worker/         dispatcher, reconciler, scheduler.
   provider-sim/   partner sandbox simulator. Development and CI only.
+  portal/         operator console. React and Vite; runs in a browser.
   e2e/            system tests that wire several apps. No production code.
 ```
+
+Packages declare **two** things about themselves, and the boundary gate
+enforces both: a `layer`, which says what may import what, and an
+`environment` — `neutral`, `node` or `browser` — which says where the code has
+to run. Rank alone could not stop `apps/portal` importing `pg`: the portal sits
+above `platform`, so the inward rule is perfectly happy. The environment rule
+is what refuses it.
 
 Everything else in the RFC's layout arrives with its task. The workspace is
 built one package at a time, and each arrives with its gate already passing.

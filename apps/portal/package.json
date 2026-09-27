@@ -1,0 +1,38 @@
+{
+  "name": "@baas/portal",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Operator console. Runs in a browser: it may import only environment-neutral packages.",
+  "baas": {
+    "layer": "app",
+    "environment": "browser",
+    "toolFiles": [
+      "vite.config.ts",
+      "src/test-setup.ts"
+    ]
+  },
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "tsc --build && vite build",
+    "dev": "vite",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@baas/contracts": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
+  }
+}

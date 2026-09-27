@@ -159,6 +159,29 @@ application is created with `rawBody: true`. Anything in front of it that
 re-serialises a body — a proxy that pretty-prints JSON, say — breaks every
 delivery, and does so only where a real partner exists.
 
+## The portal
+
+`pnpm portal:dev` serves the operator console on 5173 against whatever
+`VITE_API_BASE_URL` points at — your own `pnpm start:api`, or the compose
+`api` on the daemon host. It is a **static bundle**: no Node process, no
+server-side rendering, and no secret of its own. Its only credential is the
+operator session it exchanges an identity-provider token for, held in memory
+for the life of the tab and deliberately not in `localStorage` — a session that
+reads any customer in the tenant should not survive a closed tab.
+
+Three build-time values, and the bundle refuses to start without them:
+
+```
+VITE_API_BASE_URL=http://localhost:3000
+VITE_OIDC_ISSUER=http://localhost:8090/baas
+VITE_OIDC_CLIENT_ID=baas-portal
+```
+
+They are baked into the bundle at build time, so changing one means rebuilding
+— editing the deployed file is not a configuration mechanism.
+
+It is **not** in `docker-compose.yml` yet; see New-23.
+
 ## The tests need none of this
 
 `pnpm test` starts its own real PostgreSQL, in-process, with no daemon. That

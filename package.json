@@ -25,6 +25,8 @@
     "sim": "tsc --build && node apps/provider-sim/dist/main.js",
     "start:api": "tsc --build && node apps/api/dist/main.js",
     "start:worker": "tsc --build && node apps/worker/dist/main.js",
+    "portal:dev": "pnpm --filter @baas/portal run dev",
+    "portal:build": "pnpm --filter @baas/portal run build",
     "openapi:generate": "tsc --build && node packages/contracts/dist/cli.js --write openapi.json",
     "check:openapi": "tsc --build && node packages/contracts/dist/cli.js --check openapi.json",
     "test": "vitest run",

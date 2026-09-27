@@ -2,13 +2,14 @@
 /**
  * Boundary gate — RFC-BaaS §3.2, generalising the T1 domain-purity check.
  *
- * Four rules, each answering something the incumbent could not enforce:
+ * Five rules, each answering something the incumbent could not enforce:
  *
  *   1. Every package declares its layer, in its own package.json.
  *   2. A package may import another only in the inward direction.
  *   3. Every bare import is declared by the importing package.
- *   4. The domain imports nothing, and environment-neutral layers import no
- *      Node built-in.
+ *   4. The domain imports nothing, and a package that is not Node-only
+ *      imports no Node built-in.
+ *   5. A package may import another only if the target runs where it runs.
  *
  * Rule 3 is the one resolution cannot provide. Correction C3: pnpm isolates
  * transitive dependencies, but Node resolution walks up the directory tree, so
@@ -54,8 +55,34 @@ const LAYER_RANK = {
   e2e: 10,
 };
 
-/** Layers that must run anywhere, so may not touch Node built-ins. */
-const ENVIRONMENT_NEUTRAL = new Set(["domain", "contracts"]);
+/**
+ * Where a package's code has to be able to run (MP-6).
+ *
+ * Rank alone cannot express this. `apps/portal` sits at layer `app`, above
+ * `platform` — so rule 2 is perfectly happy for it to import `pino`, `pg` and
+ * a Node built-in, none of which exist in a browser. The failure would be a
+ * build error at best and a 400KB polyfill of `node:crypto` at worst, and
+ * neither is what the boundary is for.
+ *
+ * So environment is a **second, independent axis**:
+ *
+ *   neutral  runs anywhere. Importable by everything.
+ *   node     needs a Node runtime. Importable only by `node`.
+ *   browser  needs a DOM. Importable only by `browser`.
+ *
+ * Declared per package as `baas.environment`. The default is `node`, because
+ * that is what everything written before this rule was, and a default that
+ * silently widens what a package may import is the wrong default.
+ */
+const ENVIRONMENTS = new Set(["neutral", "node", "browser"]);
+const DEFAULT_ENVIRONMENT = "node";
+
+/** Which environments a package of a given environment may import from. */
+const MAY_IMPORT = {
+  neutral: new Set(["neutral"]),
+  node: new Set(["neutral", "node"]),
+  browser: new Set(["neutral", "browser"]),
+};
 
 /** The domain declares no runtime dependencies at all. */
 const DOMAIN_DEV_ALLOW_LIST = new Set(["typescript", "vitest"]);
@@ -123,6 +150,14 @@ for (const { dir, manifest } of packages) {
     continue;
   }
 
+  const environment = manifest.baas?.environment ?? DEFAULT_ENVIRONMENT;
+  if (!ENVIRONMENTS.has(environment)) {
+    fail(
+      `${where}/package.json declares unknown environment "${environment}". Known environments: ${[...ENVIRONMENTS].join(", ")}.`,
+    );
+    continue;
+  }
+
   const runtime = new Set(Object.keys(manifest.dependencies ?? {}));
   const dev = new Set(Object.keys(manifest.devDependencies ?? {}));
   const peer = new Set(Object.keys(manifest.peerDependencies ?? {}));
@@ -172,15 +207,15 @@ for (const { dir, manifest } of packages) {
         continue;
       }
 
-      // Rule 4b — environment-neutral layers avoid Node built-ins.
+      // Rule 4b — only a Node package may touch a Node built-in.
       if (
         specifier.startsWith("node:") ||
         specifier === "crypto" ||
         specifier === "fs"
       ) {
-        if (ENVIRONMENT_NEUTRAL.has(layer) && !isTool && !isTest) {
+        if (environment !== "node" && !isTool && !isTest) {
           fail(
-            `${shown} imports "${specifier}". Layer "${layer}" must run anywhere; declare the file in "baas.toolFiles" if it is a build tool rather than part of the published surface.`,
+            `${shown} imports "${specifier}", but ${where} declares environment "${environment}". Declare the file in "baas.toolFiles" if it is a build tool rather than part of the published surface.`,
           );
         }
         continue;
@@ -219,6 +254,18 @@ for (const { dir, manifest } of packages) {
       if (LAYER_RANK[targetLayer] >= LAYER_RANK[layer]) {
         fail(
           `${shown} imports "${packageName}" (layer "${targetLayer}") from layer "${layer}". Dependencies point inward: a package may only import a strictly lower layer.`,
+        );
+      }
+
+      // Rule 5 — the target must run where the importer runs. A test file is
+      // NOT exempt: a browser package's tests run in a browser-like
+      // environment too, and a test that reaches for `pg` proves nothing about
+      // the code that ships.
+      const targetEnvironment =
+        target.manifest.baas?.environment ?? DEFAULT_ENVIRONMENT;
+      if (!MAY_IMPORT[environment].has(targetEnvironment)) {
+        fail(
+          `${shown} imports "${packageName}", which runs in "${targetEnvironment}", from ${where}, which runs in "${environment}". A package may only import one that runs where it runs.`,
         );
       }
     }

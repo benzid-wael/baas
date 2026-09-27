@@ -81,13 +81,23 @@ const CLOCK_BOUNDARY_FILES = [
 const TOOLING_FILES = [
   "*.mjs",
   "*.config.ts",
+  // The portal's build config belongs to no TypeScript project, like every
+  // other `*.config.ts` in the workspace.
+  "apps/*/*.config.ts",
   "scripts/**/*.mjs",
   "scripts/**/*.js",
 ];
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/coverage/**", "**/node_modules/**"],
+    // `dist-types` is the portal's declaration output: `vite build` owns
+    // `dist`, so `tsc --build` cannot also write there.
+    ignores: [
+      "**/dist/**",
+      "**/dist-types/**",
+      "**/coverage/**",
+      "**/node_modules/**",
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
