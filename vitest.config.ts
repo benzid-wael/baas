@@ -6,6 +6,15 @@ export default defineConfig({
       "packages/*/src/**/*.test.ts",
       "apps/*/src/**/*.test.ts",
       "apps/*/src/**/*.test.tsx",
+      /**
+       * Workspace-level tests (New-13).
+       *
+       * The gates in `scripts/` belong to no package — a test for the boundary
+       * gate has nothing to do with `contracts`, which is where an earlier
+       * attempt put it and why it was removed. They are plain `.mjs`, like the
+       * scripts they test, so the gates stay runnable by CI with no build step.
+       */
+      "scripts/**/*.test.mjs",
     ],
     /**
      * The portal runs in a browser, so its tests need a DOM (MP-6). Everything

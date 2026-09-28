@@ -90,23 +90,177 @@ const DOMAIN_DEV_ALLOW_LIST = new Set(["typescript", "vitest"]);
 const IMPORT_PATTERN =
   /(?:^|\s)(?:import|export)[\s\S]*?from\s*["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)|require\s*\(\s*["']([^"']+)["']\s*\)/g;
 
-const failures = [];
-const fail = (message) => failures.push(message);
+/**
+ * Every rule, over an in-memory description of the workspace (New-13).
+ *
+ * Pure on purpose. The gate's failure mode is the dangerous kind — a broken
+ * classifier reports "all boundaries intact" and the architecture quietly
+ * stops being enforced, which is worse than having no gate because it is
+ * believed. A function taking `[{ name, manifest, files }]` and returning
+ * failures can be tested against fixtures; a script that walks a directory
+ * can only be tested against the workspace it is checking, where every rule
+ * passes and so proves nothing.
+ *
+ * The filesystem walk stays at the edge, below. Same shape as
+ * `Simulator.handle` returning deliveries instead of sending them.
+ *
+ * @param {{ name: string, manifest: object, files: { path: string, source: string }[] }[]} packages
+ * @returns {string[]} one message per violation, empty when the workspace is intact
+ */
+export function evaluateWorkspace(packages) {
+  const failures = [];
+  const fail = (message) => failures.push(message);
+  const byName = new Map(packages.map((p) => [p.manifest?.name, p]));
 
+  for (const { name: where, manifest, files } of packages) {
+    const layer = manifest.baas?.layer;
+
+    // Rule 1 — declared layer.
+    if (layer === undefined) {
+      fail(
+        `${where}/package.json declares no "baas.layer". Add one of: ${Object.keys(LAYER_RANK).join(", ")}.`,
+      );
+      continue;
+    }
+    if (!(layer in LAYER_RANK)) {
+      fail(
+        `${where}/package.json declares unknown layer "${layer}". Known layers: ${Object.keys(LAYER_RANK).join(", ")}.`,
+      );
+      continue;
+    }
+
+    const environment = manifest.baas?.environment ?? DEFAULT_ENVIRONMENT;
+    if (!ENVIRONMENTS.has(environment)) {
+      fail(
+        `${where}/package.json declares unknown environment "${environment}". Known environments: ${[...ENVIRONMENTS].join(", ")}.`,
+      );
+      continue;
+    }
+
+    const runtime = new Set(Object.keys(manifest.dependencies ?? {}));
+    const dev = new Set(Object.keys(manifest.devDependencies ?? {}));
+    const peer = new Set(Object.keys(manifest.peerDependencies ?? {}));
+    const toolFiles = new Set(manifest.baas?.toolFiles ?? []);
+
+    // Rule 4a — the domain declares nothing.
+    if (layer === "domain") {
+      for (const field of [
+        "dependencies",
+        "peerDependencies",
+        "optionalDependencies",
+      ]) {
+        const declared = Object.keys(manifest[field] ?? {});
+        if (declared.length > 0) {
+          fail(
+            `${where} declares ${field}: ${declared.join(", ")}. The domain depends on nothing.`,
+          );
+        }
+      }
+      for (const dependency of dev) {
+        if (!DOMAIN_DEV_ALLOW_LIST.has(dependency)) {
+          fail(
+            `${where} declares devDependency "${dependency}", outside the toolchain allow-list (${[...DOMAIN_DEV_ALLOW_LIST].join(", ")}).`,
+          );
+        }
+      }
+    }
+
+    for (const file of files) {
+      const isTest =
+        file.path.endsWith(".test.ts") || file.path.endsWith(".test.tsx");
+      // Declared relative to the package, so a fixture needs no absolute path.
+      const isTool = toolFiles.has(file.path);
+      const shown = `${where}/${file.path}`;
+
+      for (const match of file.source.matchAll(IMPORT_PATTERN)) {
+        const specifier = match[1] ?? match[2] ?? match[3];
+        if (specifier === undefined || specifier.startsWith(".")) {
+          continue;
+        }
+
+        // Rule 4b — only a Node package may touch a Node built-in.
+        if (
+          specifier.startsWith("node:") ||
+          specifier === "crypto" ||
+          specifier === "fs"
+        ) {
+          if (environment !== "node" && !isTool && !isTest) {
+            fail(
+              `${shown} imports "${specifier}", but ${where} declares environment "${environment}". Declare the file in "baas.toolFiles" if it is a build tool rather than part of the published surface.`,
+            );
+          }
+          continue;
+        }
+
+        const packageName = specifier.startsWith("@")
+          ? specifier.split("/").slice(0, 2).join("/")
+          : specifier.split("/")[0];
+
+        // Rule 3 — declared by the importer.
+        const mayUseDev = isTest || isTool;
+        const declared =
+          runtime.has(packageName) ||
+          peer.has(packageName) ||
+          (mayUseDev && dev.has(packageName));
+        if (!declared) {
+          fail(
+            mayUseDev
+              ? `${shown} imports "${packageName}", which ${where} does not declare in dependencies or devDependencies.`
+              : `${shown} imports "${packageName}", which ${where} does not declare in dependencies. A devDependency is not available at runtime.`,
+          );
+          continue;
+        }
+
+        const target = byName.get(packageName);
+        if (target === undefined) {
+          continue;
+        }
+        const targetLayer = target.manifest.baas?.layer;
+        if (targetLayer === undefined || !(targetLayer in LAYER_RANK)) {
+          continue;
+        }
+
+        // Rule 2 — inward only.
+        if (LAYER_RANK[targetLayer] >= LAYER_RANK[layer]) {
+          fail(
+            `${shown} imports "${packageName}" (layer "${targetLayer}") from layer "${layer}". Dependencies point inward: a package may only import a strictly lower layer.`,
+          );
+        }
+
+        // Rule 5 — the target must run where the importer runs. A test file is
+        // NOT exempt: a browser package's tests run in a browser-like
+        // environment too, and a test that reaches for `pg` proves nothing
+        // about the code that ships.
+        const targetEnvironment =
+          target.manifest.baas?.environment ?? DEFAULT_ENVIRONMENT;
+        if (!MAY_IMPORT[environment].has(targetEnvironment)) {
+          fail(
+            `${shown} imports "${packageName}", which runs in "${targetEnvironment}", from ${where}, which runs in "${environment}". A package may only import one that runs where it runs.`,
+          );
+        }
+      }
+    }
+  }
+
+  return failures;
+}
+
+/** Every `.ts`/`.tsx` file under a directory. */
 function walk(directory) {
   const found = [];
   for (const name of readdirSync(directory)) {
     const path = join(directory, name);
     if (statSync(path).isDirectory()) {
       found.push(...walk(path));
-    } else if (path.endsWith(".ts")) {
+    } else if (path.endsWith(".ts") || path.endsWith(".tsx")) {
       found.push(path);
     }
   }
   return found;
 }
 
-function discoverPackages() {
+/** The edge: turn the workspace on disk into what `evaluateWorkspace` takes. */
+function readWorkspace() {
   const packages = [];
   for (const group of ["packages", "apps"]) {
     const base = join(ROOT, group);
@@ -117,172 +271,52 @@ function discoverPackages() {
       continue;
     }
     for (const name of entries) {
-      const manifestPath = join(base, name, "package.json");
+      const dir = join(base, name);
+      let manifest;
       try {
-        const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-        packages.push({ dir: join(base, name), manifest });
+        manifest = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
       } catch {
         // A directory without a manifest is not a package.
+        continue;
       }
+      let files = [];
+      try {
+        files = walk(join(dir, "src")).map((path) => ({
+          path: relative(dir, path),
+          source: readFileSync(path, "utf8"),
+        }));
+      } catch {
+        // A package with no `src` is a package with no source to check.
+      }
+      packages.push({ name: relative(ROOT, dir), manifest, files });
     }
   }
   return packages;
 }
 
-const packages = discoverPackages();
-const byName = new Map(packages.map((p) => [p.manifest.name, p]));
+/**
+ * Only when run as a command.
+ *
+ * Without the guard, importing this module to test `evaluateWorkspace` would
+ * also run the real check and call `process.exit` on the way past — which is a
+ * test that can only pass, and a test run that can vanish.
+ */
+if (import.meta.main) {
+  const packages = readWorkspace();
+  const failures = evaluateWorkspace(packages);
 
-for (const { dir, manifest } of packages) {
-  const where = relative(ROOT, dir);
-  const layer = manifest.baas?.layer;
-
-  // Rule 1 — declared layer.
-  if (layer === undefined) {
-    fail(
-      `${where}/package.json declares no "baas.layer". Add one of: ${Object.keys(LAYER_RANK).join(", ")}.`,
+  if (failures.length > 0) {
+    console.error(
+      `Boundary gate FAILED (${failures.length} problem${failures.length === 1 ? "" : "s"}):\n`,
     );
-    continue;
-  }
-  if (!(layer in LAYER_RANK)) {
-    fail(
-      `${where}/package.json declares unknown layer "${layer}". Known layers: ${Object.keys(LAYER_RANK).join(", ")}.`,
-    );
-    continue;
-  }
-
-  const environment = manifest.baas?.environment ?? DEFAULT_ENVIRONMENT;
-  if (!ENVIRONMENTS.has(environment)) {
-    fail(
-      `${where}/package.json declares unknown environment "${environment}". Known environments: ${[...ENVIRONMENTS].join(", ")}.`,
-    );
-    continue;
+    for (const failure of failures) {
+      console.error(`  - ${failure}`);
+    }
+    console.error("");
+    process.exit(1);
   }
 
-  const runtime = new Set(Object.keys(manifest.dependencies ?? {}));
-  const dev = new Set(Object.keys(manifest.devDependencies ?? {}));
-  const peer = new Set(Object.keys(manifest.peerDependencies ?? {}));
-  const toolFiles = new Set(
-    (manifest.baas?.toolFiles ?? []).map((file) => join(dir, file)),
+  console.log(
+    `Boundary gate passed: ${packages.length} packages, all boundaries intact.`,
   );
-
-  // Rule 4a — the domain declares nothing.
-  if (layer === "domain") {
-    for (const field of [
-      "dependencies",
-      "peerDependencies",
-      "optionalDependencies",
-    ]) {
-      const declared = Object.keys(manifest[field] ?? {});
-      if (declared.length > 0) {
-        fail(
-          `${where} declares ${field}: ${declared.join(", ")}. The domain depends on nothing.`,
-        );
-      }
-    }
-    for (const name of dev) {
-      if (!DOMAIN_DEV_ALLOW_LIST.has(name)) {
-        fail(
-          `${where} declares devDependency "${name}", outside the toolchain allow-list (${[...DOMAIN_DEV_ALLOW_LIST].join(", ")}).`,
-        );
-      }
-    }
-  }
-
-  let sources;
-  try {
-    sources = walk(join(dir, "src"));
-  } catch {
-    continue;
-  }
-
-  for (const file of sources) {
-    const isTest = file.endsWith(".test.ts");
-    const isTool = toolFiles.has(file);
-    const shown = relative(ROOT, file);
-    const source = readFileSync(file, "utf8");
-
-    for (const match of source.matchAll(IMPORT_PATTERN)) {
-      const specifier = match[1] ?? match[2] ?? match[3];
-      if (specifier === undefined || specifier.startsWith(".")) {
-        continue;
-      }
-
-      // Rule 4b — only a Node package may touch a Node built-in.
-      if (
-        specifier.startsWith("node:") ||
-        specifier === "crypto" ||
-        specifier === "fs"
-      ) {
-        if (environment !== "node" && !isTool && !isTest) {
-          fail(
-            `${shown} imports "${specifier}", but ${where} declares environment "${environment}". Declare the file in "baas.toolFiles" if it is a build tool rather than part of the published surface.`,
-          );
-        }
-        continue;
-      }
-
-      const packageName = specifier.startsWith("@")
-        ? specifier.split("/").slice(0, 2).join("/")
-        : specifier.split("/")[0];
-
-      // Rule 3 — declared by the importer. A tool file is build- or test-time
-      // only and not part of the published runtime surface, so it may use
-      // devDependencies — the same exemption that lets it touch Node built-ins.
-      const mayUseDev = isTest || isTool;
-      const declared =
-        runtime.has(packageName) ||
-        peer.has(packageName) ||
-        (mayUseDev && dev.has(packageName));
-      if (!declared) {
-        fail(
-          mayUseDev
-            ? `${shown} imports "${packageName}", which ${where} does not declare in dependencies or devDependencies.`
-            : `${shown} imports "${packageName}", which ${where} does not declare in dependencies. A devDependency is not available at runtime.`,
-        );
-        continue;
-      }
-
-      // Rule 2 — inward only.
-      const target = byName.get(packageName);
-      if (target === undefined) {
-        continue;
-      }
-      const targetLayer = target.manifest.baas?.layer;
-      if (targetLayer === undefined || !(targetLayer in LAYER_RANK)) {
-        continue;
-      }
-      if (LAYER_RANK[targetLayer] >= LAYER_RANK[layer]) {
-        fail(
-          `${shown} imports "${packageName}" (layer "${targetLayer}") from layer "${layer}". Dependencies point inward: a package may only import a strictly lower layer.`,
-        );
-      }
-
-      // Rule 5 — the target must run where the importer runs. A test file is
-      // NOT exempt: a browser package's tests run in a browser-like
-      // environment too, and a test that reaches for `pg` proves nothing about
-      // the code that ships.
-      const targetEnvironment =
-        target.manifest.baas?.environment ?? DEFAULT_ENVIRONMENT;
-      if (!MAY_IMPORT[environment].has(targetEnvironment)) {
-        fail(
-          `${shown} imports "${packageName}", which runs in "${targetEnvironment}", from ${where}, which runs in "${environment}". A package may only import one that runs where it runs.`,
-        );
-      }
-    }
-  }
 }
-
-if (failures.length > 0) {
-  console.error(
-    `Boundary gate FAILED (${failures.length} problem${failures.length === 1 ? "" : "s"}):\n`,
-  );
-  for (const failure of failures) {
-    console.error(`  - ${failure}`);
-  }
-  console.error("");
-  process.exit(1);
-}
-
-console.log(
-  `Boundary gate passed: ${packages.length} packages, all boundaries intact.`,
-);
