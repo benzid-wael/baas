@@ -69,6 +69,7 @@ export class KeelReads implements AccountReadPort, TransactionReadPort {
       transactions?: KeelTransactionSummary[];
       nextCursor?: string | null;
     }>(TRANSACTIONS, {
+      accountReference: request.accountReference,
       query: {
         accountId: request.accountReference,
         limit: request.limit,
@@ -97,8 +98,13 @@ export class KeelReads implements AccountReadPort, TransactionReadPort {
     try {
       return await this.http.get<KeelAccountSummary>(
         `${ACCOUNTS}/${encodeURIComponent(accountReference)}`,
-        // The reference goes in the path, so the log records the route.
-        { operation: `GET ${ACCOUNTS}/{accountReference}` },
+        // The reference goes in the path, so the log records the route — and
+        // separately in `accountReference`, which is what an incident is
+        // traced by (MP-9).
+        {
+          operation: `GET ${ACCOUNTS}/{accountReference}`,
+          accountReference,
+        },
       );
     } catch (error) {
       if (error instanceof KeelApiError && error.status === 404) {

@@ -21,6 +21,8 @@ export interface KeelRequestOptions {
    * still what gets requested.
    */
   readonly operation?: string;
+  /** The account this call is about, for the request log (MP-9). */
+  readonly accountReference?: string;
   readonly idempotencyId?: string;
   readonly correlationId?: string;
   readonly query?: Readonly<Record<string, string | number | undefined>>;
@@ -180,6 +182,7 @@ export class KeelHttp {
           operation: endpoint,
           correlationId: options.correlationId,
           idempotencyId: options.idempotencyId,
+          accountReference: options.accountReference,
           outcome,
           responseStatus,
           requestBody: rawBody,

@@ -206,6 +206,13 @@ export interface ProviderCall {
   readonly operation: string;
   readonly correlationId?: string | undefined;
   readonly idempotencyId?: string | undefined;
+  /**
+   * The account this call was about, when it was about one (MP-9).
+   *
+   * Absent for a token fetch or an owner-wide list. It is how an incident is
+   * traced: support has an account reference and nothing else.
+   */
+  readonly accountReference?: string | undefined;
   readonly outcome: ProviderCallOutcome;
   /** Absent when the provider never answered. */
   readonly responseStatus?: number | undefined;

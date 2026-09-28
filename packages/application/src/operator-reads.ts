@@ -243,11 +243,16 @@ export class OperatorReads {
         subjectType: "provider_request_log",
         // No single subject. The filter is the subject, and a scan with no
         // filter says so as `all`.
-        subjectId: query.correlationId ?? query.providerId ?? "all",
+        subjectId:
+          query.accountReference ??
+          query.correlationId ??
+          query.providerId ??
+          "all",
         detail: {
           returned: page.calls.length,
           filteredByProvider: query.providerId !== undefined,
           filteredByCorrelation: query.correlationId !== undefined,
+          filteredByAccount: query.accountReference !== undefined,
           paged: query.cursor !== undefined,
         },
       });

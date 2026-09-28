@@ -156,7 +156,11 @@ export class RuyaReads implements AccountReadPort, TransactionReadPort {
     const page = request.cursor === undefined ? 1 : Number(request.cursor);
     const raw = await this.http.get<RawTransactionResponse>(
       `${TRANSACTIONS}/${encodeURIComponent(request.accountReference)}`,
-      { query: { pageNum: page, pageSize: request.limit } },
+      {
+        operation: `GET ${TRANSACTIONS}/{accountReference}`,
+        accountReference: request.accountReference,
+        query: { pageNum: page, pageSize: request.limit },
+      },
     );
 
     const transactions = (raw.transactionDetails ?? []).map((item) =>
@@ -183,8 +187,13 @@ export class RuyaReads implements AccountReadPort, TransactionReadPort {
     try {
       const raw = await this.http.get<RawBalanceDetails>(
         `${BALANCE_DETAILS}/${encodeURIComponent(accountReference)}`,
-        // The reference goes in the path, so the log records the route.
-        { operation: `GET ${BALANCE_DETAILS}/{accountReference}` },
+        // The reference goes in the path, so the log records the route — and
+        // separately in `accountReference`, which is what an incident is
+        // traced by (MP-9).
+        {
+          operation: `GET ${BALANCE_DETAILS}/{accountReference}`,
+          accountReference,
+        },
       );
       return raw.accountBalanceDetails?.balance;
     } catch (error) {

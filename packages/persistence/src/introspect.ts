@@ -117,6 +117,7 @@ export const DECLARED_SCHEMA: Readonly<Record<string, readonly string[]>> = {
     "operation",
     "correlation_id",
     "idempotency_id",
+    "account_reference",
     "outcome",
     "response_status",
     "request_body",

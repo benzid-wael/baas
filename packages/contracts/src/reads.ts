@@ -171,6 +171,8 @@ export const providerCallSummarySchema = z.object({
   operation: z.string().min(1),
   correlationId: z.string().nullable(),
   idempotencyId: z.string().nullable(),
+  /** The account the call was about, when it was about one (MP-9). */
+  accountReference: z.string().nullable(),
   outcome: z.enum(["ok", "rejected", "unreachable"]),
   responseStatus: z.number().int().nullable(),
   startedAt: instantSchema,

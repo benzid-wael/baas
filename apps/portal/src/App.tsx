@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ApiClient } from "./api.js";
 import { SystemPanel } from "./system-panel.js";
 import { CustomerScreen } from "./customer.js";
+import { RequestLog } from "./request-log.js";
 import { beginSignIn, completeSignIn } from "./oidc.js";
 import type { FlowStore } from "./oidc.js";
 import type { PortalConfig } from "./config.js";
@@ -59,7 +60,9 @@ export function App(props: AppProps): React.JSX.Element {
    * and would look perfectly healthy against a dead API. It is also the screen
    * an incident starts on.
    */
-  const [screen, setScreen] = useState<"customers" | "system">("system");
+  const [screen, setScreen] = useState<"customers" | "requests" | "system">(
+    "system",
+  );
 
   const fail = useCallback((cause: unknown): void => {
     setError(cause instanceof Error ? cause.message : "Something went wrong.");
@@ -134,6 +137,15 @@ export function App(props: AppProps): React.JSX.Element {
             <button
               type="button"
               onClick={() => {
+                setScreen("requests");
+              }}
+              aria-current={screen === "requests" ? "page" : undefined}
+            >
+              Provider requests
+            </button>
+            <button
+              type="button"
+              onClick={() => {
                 setScreen("system");
               }}
               aria-current={screen === "system" ? "page" : undefined}
@@ -144,11 +156,9 @@ export function App(props: AppProps): React.JSX.Element {
               Sign out
             </button>
           </nav>
-          {screen === "customers" ? (
-            <CustomerScreen api={api} />
-          ) : (
-            <SystemPanel api={api} />
-          )}
+          {screen === "customers" && <CustomerScreen api={api} />}
+          {screen === "requests" && <RequestLog api={api} />}
+          {screen === "system" && <SystemPanel api={api} />}
         </>
       )}
 

@@ -208,6 +208,7 @@ export class PlatformReadController {
     @Req() request: RequestWithPrincipal,
     @Query("providerId") providerId?: string,
     @Query("correlationId") correlationId?: string,
+    @Query("accountReference") accountReference?: string,
     @Query("limit") limit?: string,
     @Query("cursor") cursor?: string,
   ): Promise<ProviderCallPageWire> {
@@ -216,6 +217,7 @@ export class PlatformReadController {
       limit: pageSize(limit),
       providerId,
       correlationId,
+      accountReference,
       cursor,
     });
     return {
@@ -465,6 +467,7 @@ function toCallSummaryWire(call: RecordedCall): ProviderCallSummaryWire {
     operation: call.operation,
     correlationId: call.correlationId,
     idempotencyId: call.idempotencyId,
+    accountReference: call.accountReference,
     // Narrowed here rather than in persistence: the column is a text column
     // with a CHECK constraint, and the wire type is the closed set. The cast
     // is where those two meet, and it is one place rather than every reader.

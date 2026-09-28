@@ -37,6 +37,8 @@ export interface RuyaRequestOptions {
    * is an account reference on screen, and BaNCS puts one in the path.
    */
   readonly operation?: string;
+  /** The account this call is about, for the request log (MP-9). */
+  readonly accountReference?: string;
   readonly query?: Readonly<Record<string, string | number | undefined>>;
   readonly correlationId?: string;
   /** Off for the token call itself, which must not recurse. */
@@ -228,6 +230,7 @@ export class RuyaHttp {
           providerId: "ruya",
           operation,
           correlationId: options.correlationId,
+          accountReference: options.accountReference,
           outcome,
           responseStatus,
           // A GET, so there is no request body. Kept as a column rather than

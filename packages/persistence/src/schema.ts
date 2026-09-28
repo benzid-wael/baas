@@ -49,6 +49,8 @@ export interface ProviderRequestLogTable {
   operation: string;
   correlation_id: string | null;
   idempotency_id: string | null;
+  /** The account the call was about, when it was about one. See 0011. */
+  account_reference: string | null;
   outcome: string;
   response_status: number | null;
   request_body: string;

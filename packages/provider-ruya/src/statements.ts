@@ -82,6 +82,7 @@ export class RuyaStatements implements StatementReadPort {
       ` and gits_accountreference eq '${odataIdentifier(request.accountReference)}'`;
 
     const raw = await this.http.get<RawStatementList>(STATEMENT_INQUIRY, {
+      accountReference: request.accountReference,
       query: { $select: SELECT, $filter: filter },
       skipStandardHeaders: true,
     });

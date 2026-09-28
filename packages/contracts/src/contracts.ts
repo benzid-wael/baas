@@ -212,7 +212,7 @@ export function buildRegistry(): ContractRegistry {
       get: {
         operationId: "listProviderRequests",
         summary:
-          "Provider calls, newest first. Bodies are omitted; fetch one by id for those. Audited.",
+          "Provider calls, newest first, filterable by provider, correlation id or account reference. Bodies are omitted; fetch one by id for those. Audited.",
         responses: {
           "200": {
             description: "A page of provider calls",

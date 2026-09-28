@@ -35,6 +35,7 @@ export interface RecordedCall {
   readonly operation: string;
   readonly correlationId: string | null;
   readonly idempotencyId: string | null;
+  readonly accountReference: string | null;
   readonly outcome: string;
   readonly responseStatus: number | null;
   readonly requestBody: string;
@@ -53,6 +54,8 @@ export interface ProviderCallQuery {
   readonly limit: number;
   readonly providerId?: string | undefined;
   readonly correlationId?: string | undefined;
+  /** How an incident is actually traced: support has this and nothing else. */
+  readonly accountReference?: string | undefined;
   readonly cursor?: string | undefined;
 }
 
@@ -81,6 +84,13 @@ export class ProviderRequestLogRepository {
     }
     if (query.correlationId !== undefined) {
       statement = statement.where("correlation_id", "=", query.correlationId);
+    }
+    if (query.accountReference !== undefined) {
+      statement = statement.where(
+        "account_reference",
+        "=",
+        query.accountReference,
+      );
     }
     if (query.cursor !== undefined) {
       // Keyset, not offset: an offset page shifts under a table being written
@@ -184,6 +194,7 @@ export class TenantScopedCallRecorder implements ProviderCallRecorder {
             operation: call.operation,
             correlation_id: call.correlationId ?? null,
             idempotency_id: call.idempotencyId ?? null,
+            account_reference: call.accountReference ?? null,
             outcome: call.outcome,
             response_status: call.responseStatus ?? null,
             request_body: prepare(call.requestBody),
@@ -221,6 +232,7 @@ function toRecordedCall(row: {
   operation: string;
   correlation_id: string | null;
   idempotency_id: string | null;
+  account_reference: string | null;
   outcome: string;
   response_status: number | null;
   request_body: string;
@@ -235,6 +247,7 @@ function toRecordedCall(row: {
     operation: row.operation,
     correlationId: row.correlation_id,
     idempotencyId: row.idempotency_id,
+    accountReference: row.account_reference,
     outcome: row.outcome,
     responseStatus: row.response_status,
     requestBody: row.request_body,
