@@ -12,12 +12,17 @@ import { fromMoney } from "@baas/contracts";
 import type {
   AccountWire,
   CustomerSummaryWire,
+  ProviderCallPageWire,
+  ProviderCallSummaryWire,
+  ProviderCallWire,
+  SystemStateWire,
   TransactionWire,
 } from "@baas/contracts";
 import type {
   OperatorAccountView,
   OperatorReads,
   SystemReads,
+  SystemState,
 } from "@baas/application";
 import type { ProjectedTransaction, RecordedCall } from "@baas/persistence";
 import { formatInstant, fromJsDate } from "@baas/platform";
@@ -64,9 +69,11 @@ export class PlatformReadController {
   @Get("system")
   @OperatorSurface()
   @Roles("operator", "admin")
-  async systemState(@Req() request: RequestWithPrincipal): Promise<unknown> {
+  async systemState(
+    @Req() request: RequestWithPrincipal,
+  ): Promise<SystemStateWire> {
     const { tenantId } = operator(request);
-    return this.system.state(tenantId);
+    return toSystemStateWire(await this.system.state(tenantId));
   }
 
   /**
@@ -190,7 +197,7 @@ export class PlatformReadController {
     @Query("correlationId") correlationId?: string,
     @Query("limit") limit?: string,
     @Query("cursor") cursor?: string,
-  ): Promise<unknown> {
+  ): Promise<ProviderCallPageWire> {
     const { tenantId, actor } = operator(request);
     const page = await this.reads.providerCalls(tenantId, actor, {
       limit: pageSize(limit),
@@ -211,7 +218,7 @@ export class PlatformReadController {
   async providerRequest(
     @Req() request: RequestWithPrincipal,
     @Param("id") id: string,
-  ): Promise<unknown> {
+  ): Promise<ProviderCallWire> {
     const { tenantId, actor } = operator(request);
     const call = await this.reads.providerCall(tenantId, actor, id);
     if (call === undefined) {
@@ -226,14 +233,60 @@ export class PlatformReadController {
   }
 }
 
-function toCallSummaryWire(call: RecordedCall): Record<string, unknown> {
+/**
+ * The application layer returns readonly arrays; the wire type is plain JSON.
+ *
+ * Copied explicitly rather than cast. A cast here would hand a caller a
+ * reference to the application's own array, which is how a "read" model ends
+ * up mutated by a serialiser somewhere downstream.
+ */
+function toSystemStateWire(state: SystemState): SystemStateWire {
+  return {
+    migrations: {
+      applied: [...state.migrations.applied],
+      ...(state.migrations.lastAppliedAt === undefined
+        ? {}
+        : { lastAppliedAt: state.migrations.lastAppliedAt }),
+    },
+    schema: {
+      matches: state.schema.matches,
+      undeclared: [...state.schema.undeclared],
+      missing: [...state.schema.missing],
+    },
+    outbox: {
+      depths: state.outbox.depths.map((depth) => ({
+        state: depth.state,
+        count: depth.count,
+        ...(depth.oldestAgeSeconds === undefined
+          ? {}
+          : { oldestAgeSeconds: depth.oldestAgeSeconds }),
+      })),
+      unresolved: state.outbox.unresolved,
+    },
+    inbox: {
+      unprocessed: state.inbox.unprocessed,
+      ...(state.inbox.oldestUnprocessedAgeSeconds === undefined
+        ? {}
+        : {
+            oldestUnprocessedAgeSeconds:
+              state.inbox.oldestUnprocessedAgeSeconds,
+          }),
+      rejectedSignatures: state.inbox.rejectedSignatures,
+    },
+  };
+}
+
+function toCallSummaryWire(call: RecordedCall): ProviderCallSummaryWire {
   return {
     id: call.id,
     providerId: call.providerId,
     operation: call.operation,
     correlationId: call.correlationId,
     idempotencyId: call.idempotencyId,
-    outcome: call.outcome,
+    // Narrowed here rather than in persistence: the column is a text column
+    // with a CHECK constraint, and the wire type is the closed set. The cast
+    // is where those two meet, and it is one place rather than every reader.
+    outcome: call.outcome as ProviderCallSummaryWire["outcome"],
     responseStatus: call.responseStatus,
     startedAt: formatInstant(fromJsDate(call.startedAt)),
     durationMs: call.durationMs,

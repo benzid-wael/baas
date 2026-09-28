@@ -1,10 +1,11 @@
 import { Controller, Get, Inject } from "@nestjs/common";
+import type { CapabilityReportWire } from "@baas/contracts";
 import { Public, Roles, Scopes } from "./decorators.js";
 
 export const CAPABILITY_PROVIDER = "baas:CapabilityProvider";
 
 export interface CapabilityProvider {
-  capabilities(): Promise<unknown>;
+  capabilities(): Promise<CapabilityReportWire>;
   ready(): Promise<{ ready: boolean; checks: Record<string, boolean> }>;
 }
 
@@ -35,7 +36,7 @@ export class SystemController {
   /** What is on, and why (finding A8). */
   @Get("capabilities")
   @Roles("operator")
-  capabilities(): Promise<unknown> {
+  capabilities(): Promise<CapabilityReportWire> {
     return this.provider.capabilities();
   }
 

@@ -230,7 +230,24 @@ function capabilityProvider(
   logger: Logger,
 ): CapabilityProvider {
   return {
-    capabilities: () => Promise.resolve(capabilities.report()),
+    capabilities: () => {
+      // Copied, not handed over. The registry's arrays are its own, and a
+      // response that aliases them is a read model something downstream can
+      // mutate. The same reason `toSystemStateWire` copies.
+      const report = capabilities.report();
+      return Promise.resolve({
+        service: report.service,
+        appEnv: report.appEnv,
+        tenants: [...report.tenants],
+        providers: report.providers.map((provider) => ({
+          provider: provider.provider,
+          available: provider.available,
+          ...(provider.reason === undefined ? {} : { reason: provider.reason }),
+          operations: [...provider.operations],
+        })),
+        checkedAt: report.checkedAt,
+      });
+    },
     ready: async () => {
       const checks: Record<string, boolean> = {
         database: false,

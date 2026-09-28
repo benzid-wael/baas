@@ -152,3 +152,68 @@ export type AccountWire = z.infer<typeof accountSchema>;
 export type BalanceWire = z.infer<typeof balanceSchema>;
 export type TransactionWire = z.infer<typeof transactionSchema>;
 export type StatementWire = z.infer<typeof statementSchema>;
+
+/**
+ * The provider request log, as an operator sees it (MP-2, New-27).
+ *
+ * The summary carries **no bodies**. They are the reason this is the most
+ * sensitive table in the service, and a list view puts fifty of them on one
+ * screen for a question the status and duration usually answer. Fetching one
+ * is a second, separately audited act, and only that response carries them —
+ * which is why these are two schemas rather than one with optional fields.
+ */
+export const providerCallSummarySchema = z.object({
+  id: uuidSchema,
+  providerId: slugSchema,
+  /** Method and route. Never a concrete identifier; see correction C12. */
+  operation: z.string().min(1),
+  correlationId: z.string().nullable(),
+  idempotencyId: z.string().nullable(),
+  outcome: z.enum(["ok", "rejected", "unreachable"]),
+  responseStatus: z.number().int().nullable(),
+  startedAt: instantSchema,
+  durationMs: z.number().int().nonnegative(),
+});
+
+export const providerCallPageSchema = pageOf(providerCallSummarySchema);
+
+export const providerCallSchema = providerCallSummarySchema.extend({
+  /** Scrubbed on write, and truncated past a cap. Still restricted data. */
+  requestBody: z.string(),
+  responseBody: z.string(),
+  errorMessage: z.string().nullable(),
+});
+
+/** What the service can tell an operator about itself (MP-5, New-27). */
+export const systemStateSchema = z.object({
+  migrations: z.object({
+    applied: z.array(z.string().min(1)),
+    lastAppliedAt: instantSchema.optional(),
+  }),
+  schema: z.object({
+    matches: z.boolean(),
+    undeclared: z.array(z.string()),
+    missing: z.array(z.string()),
+  }),
+  outbox: z.object({
+    depths: z.array(
+      z.object({
+        state: z.string().min(1),
+        count: z.number().int().nonnegative(),
+        oldestAgeSeconds: z.number().int().nonnegative().optional(),
+      }),
+    ),
+    /** `pending` + `dispatched` + `unknown`: everything undecided (A7). */
+    unresolved: z.number().int().nonnegative(),
+  }),
+  inbox: z.object({
+    unprocessed: z.number().int().nonnegative(),
+    oldestUnprocessedAgeSeconds: z.number().int().nonnegative().optional(),
+    rejectedSignatures: z.number().int().nonnegative(),
+  }),
+});
+
+export type ProviderCallSummaryWire = z.infer<typeof providerCallSummarySchema>;
+export type ProviderCallPageWire = z.infer<typeof providerCallPageSchema>;
+export type ProviderCallWire = z.infer<typeof providerCallSchema>;
+export type SystemStateWire = z.infer<typeof systemStateSchema>;

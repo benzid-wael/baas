@@ -56,7 +56,14 @@ beforeAll(async () => {
       audience: "baas",
     },
     capabilities: {
-      capabilities: () => Promise.resolve({ service: "baas", providers: [] }),
+      capabilities: () =>
+        Promise.resolve({
+          service: "baas",
+          appEnv: "dev" as const,
+          tenants: [],
+          providers: [],
+          checkedAt: "2026-09-28T00:00:00.000Z",
+        }),
       ready: () => Promise.resolve({ ready: true, checks: { schema: true } }),
     },
     logger,

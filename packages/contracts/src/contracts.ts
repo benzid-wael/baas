@@ -11,6 +11,10 @@ import {
   accountListSchema,
   accountSchema,
   customerSummarySchema,
+  providerCallPageSchema,
+  providerCallSchema,
+  providerCallSummarySchema,
+  systemStateSchema,
   balanceSchema,
   statementListSchema,
   statementSchema,
@@ -58,6 +62,8 @@ export const capabilityReportSchema = z.object({
   checkedAt: instantSchema,
 });
 
+export type CapabilityReportWire = z.infer<typeof capabilityReportSchema>;
+
 export function buildRegistry(): ContractRegistry {
   return new RegistryBuilder()
     .schema("Money", moneySchema)
@@ -69,6 +75,10 @@ export function buildRegistry(): ContractRegistry {
     .schema("CapabilityReport", capabilityReportSchema)
     .schema("Account", accountSchema)
     .schema("CustomerSummary", customerSummarySchema)
+    .schema("ProviderCallSummary", providerCallSummarySchema)
+    .schema("ProviderCallPage", providerCallPageSchema)
+    .schema("ProviderCall", providerCallSchema)
+    .schema("SystemState", systemStateSchema)
     .schema("AccountList", accountListSchema)
     .schema("Balance", balanceSchema)
     .schema("Transaction", transactionSchema)
@@ -152,7 +162,7 @@ export function buildRegistry(): ContractRegistry {
         summary:
           "Migrations, schema drift, and outbox and inbox depths. Not audited: it carries no personal data and a dashboard polls.",
         responses: {
-          "200": { description: "The system's state" },
+          "200": { description: "The system's state", schema: "SystemState" },
         },
       },
     })
@@ -162,7 +172,10 @@ export function buildRegistry(): ContractRegistry {
         summary:
           "Provider calls, newest first. Bodies are omitted; fetch one by id for those. Audited.",
         responses: {
-          "200": { description: "A page of provider calls" },
+          "200": {
+            description: "A page of provider calls",
+            schema: "ProviderCallPage",
+          },
         },
       },
     })
@@ -172,7 +185,10 @@ export function buildRegistry(): ContractRegistry {
         summary:
           "One provider call, including the scrubbed request and response bodies. Separately audited.",
         responses: {
-          "200": { description: "The provider call" },
+          "200": {
+            description: "The provider call",
+            schema: "ProviderCall",
+          },
           "404": {
             description: "No such provider request",
             schema: "ErrorResponse",
