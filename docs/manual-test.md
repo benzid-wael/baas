@@ -99,7 +99,67 @@ Point a health check at `/system/ready`.
 
 ---
 
-## 3. The portal
+## 3. The mobile surface, by hand
+
+The customer read surface needs an ES256 assertion the BFF would normally mint.
+There is no BFF here, so two dev-only commands stand in. Both refuse any tier
+but `dev`, before touching anything.
+
+```sh
+pnpm seed:demo      # as above, plus a demo customer with three accounts
+pnpm assertion      # prints a key pair and a 60-second assertion
+```
+
+`pnpm assertion` generates a throwaway key pair and prints the public half in
+the single-line base64 form `MOBILE_ASSERTION_PUBLIC_KEY` wants. Put it in
+`.env`, restart the API, then export the private half to mint more against the
+same key:
+
+```sh
+export DEV_ASSERTION_PRIVATE_KEY=<the single line it printed>
+pnpm assertion
+```
+
+Then, with the client credentials from `pnpm seed`:
+
+```sh
+curl -H "x-sc-client-id: bff"       -H "x-sc-client-secret: $SECRET" \
+     -H "x-sc-user-uuid: $UUID"     -H "x-sc-user-assertion: $ASSERTION" \
+     http://localhost:3000/mobile/accounts
+```
+
+### Verified
+
+| Request                                               | Response                   |
+| ----------------------------------------------------- | -------------------------- |
+| `GET /mobile/accounts`                                | `200`, three accounts      |
+| `GET /mobile/accounts/DEMO-ACCT-OLD`                  | `200`, balance with an age |
+| `GET /mobile/accounts/DEMO-ACCT-OLD/transactions`     | `200 {"items":[]}`         |
+| `GET /mobile/accounts/SOMEONE-ELSE`                   | `404` — not `403`          |
+| tampered assertion                                    | `401`                      |
+| assertion whose subject ≠ the `x-sc-user-uuid` header | `401`                      |
+
+The last two are the confused-deputy control working: a stolen assertion is no
+use with a different uuid, and the `404` on an account that is not theirs is
+the same answer as one that does not exist.
+
+### The three balance shapes
+
+The demo customer exists so that a screen cannot be built against one shape.
+Finding F4 is an absent value rendered as a confident `0.00`, which reads as
+"you have no money" and is a worse lie than an error.
+
+| Account            | Balance                                                           |
+| ------------------ | ----------------------------------------------------------------- |
+| `DEMO-ACCT-RECENT` | observed seconds ago — `fresh: true` for 30 seconds after seeding |
+| `DEMO-ACCT-OLD`    | observed an hour ago — `observed`, `fresh: false`, with an age    |
+| `DEMO-ACCT-SILENT` | `{"kind":"unavailable","reason":"never_observed"}`                |
+
+**`RECENT` reports `fresh: false` more than 30 seconds after seeding**, because
+with no provider adapter nothing can refresh it. That is the honest behaviour
+rather than a bug; seed and look immediately to see `fresh: true`.
+
+## 4. The portal
 
 ```sh
 cp apps/portal/.env.example apps/portal/.env
@@ -144,7 +204,7 @@ thing to suspect.**
 
 ---
 
-## Not yet reachable
+## 5. Not yet reachable
 
 |                                            | Why                                                                                           | Task   |
 | ------------------------------------------ | --------------------------------------------------------------------------------------------- | ------ |
@@ -154,6 +214,6 @@ thing to suspect.**
 | Customer, accounts and transaction screens | Not built, and the seed creates no customers                                                  | MP-7b  |
 | The portal in Docker                       | No image and no compose service                                                               | New-23 |
 
-The mobile gap is the sharpest one: M1-5, M1-8 and M1-9 are reachable only from
-the automated tests, which is the shape of finding N1 — a path that works in a
-test and has never been exercised by a person.
+The remaining gaps are all about _writing_ and _providers_. The read surface —
+M1-5, M1-8 and M1-9 — has now been exercised by a person rather than only by a
+test, which was the shape of finding N1.

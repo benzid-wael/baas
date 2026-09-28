@@ -89,13 +89,17 @@ export class ReadBalance {
         { accountId: account.id, providerId: account.providerId },
         "no adapter for the account's provider",
       );
-      return this.fallback(stored);
+      // Never asked, so `never_observed` — not `provider_unreachable`, which
+      // would be a false statement about a provider we did not contact.
+      return this.fallback(stored, "never_observed");
     }
 
     try {
       const fresh = await provider.getBalance(account.accountReference);
       if (fresh === undefined) {
-        return this.fallback(stored);
+        // The provider answered, and has no balance for this account. That is
+        // an absence, not a failure.
+        return this.fallback(stored, "never_observed");
       }
 
       await this.scope.runAsProviderSync(tenantId, (db: ScopedDatabase) =>
@@ -123,13 +127,31 @@ export class ReadBalance {
         },
         "balance read failed; serving the last observation if there is one",
       );
-      return this.fallback(stored);
+      // The call failed. This is the one case where the provider genuinely
+      // could not be reached, and the only one that should say so.
+      return this.fallback(stored, "provider_unreachable");
     }
   }
 
-  private fallback(stored: BalanceObservation | undefined): BalanceView {
+  /**
+   * What to serve when there is no fresh figure.
+   *
+   * The reason is passed in rather than assumed, because the three ways of
+   * getting here are not the same thing (correction C15). An earlier version
+   * always answered `provider_unreachable`, which made `never_observed`
+   * **unreachable in practice** — a dead variant in a closed set the UI is
+   * meant to branch on, which is finding A1's shape again: a distinction that
+   * exists in the type and never in the answer.
+   *
+   * For a customer the difference is real: "we do not have this yet" is not an
+   * incident, and "we cannot reach your bank right now" might be.
+   */
+  private fallback(
+    stored: BalanceObservation | undefined,
+    reason: "never_observed" | "provider_unreachable",
+  ): BalanceView {
     if (stored === undefined) {
-      return { kind: "unavailable", reason: "provider_unreachable" };
+      return { kind: "unavailable", reason };
     }
     return this.observed(
       stored.available,

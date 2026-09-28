@@ -26,6 +26,8 @@
     "start:api": "tsc --build && node apps/api/dist/main.js",
     "start:worker": "tsc --build && node apps/worker/dist/main.js",
     "seed": "tsc --build && node apps/api/dist/seed-cli.js",
+    "seed:demo": "tsc --build && SEED_DEMO_DATA=true node apps/api/dist/seed-cli.js",
+    "assertion": "tsc --build && node apps/api/dist/dev-assertion-cli.js",
     "portal:dev": "pnpm --filter @baas/portal run dev",
     "portal:build": "pnpm --filter @baas/portal run build",
     "openapi:generate": "tsc --build && node packages/contracts/dist/cli.js --write openapi.json",

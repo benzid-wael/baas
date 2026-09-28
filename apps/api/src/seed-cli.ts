@@ -16,6 +16,8 @@ import type { Database, MigratableDatabase } from "@baas/persistence";
 import type { Kysely } from "kysely";
 import { join } from "node:path";
 import { SeedRefusedError, seed } from "./seed.js";
+import { seedDemoData } from "./demo-data.js";
+import { TenantScope } from "@baas/persistence";
 
 /* c8 ignore start -- process wiring, exercised by running the command */
 const clock = new SystemClock();
@@ -65,6 +67,32 @@ async function main(): Promise<void> {
   });
 
   logger.info({ tenantSlug: slug }, "tenant ready");
+
+  // Opt-in, because demo rows in a database somebody later points at something
+  // real are rows somebody has to explain. `pnpm seed:demo` asks for them.
+  if (process.env["SEED_DEMO_DATA"] === "true") {
+    const demo = await seedDemoData(
+      new TenantScope(db),
+      clock,
+      new UuidV7Generator(),
+      { appEnv: config.global.appEnv, tenantId: outcome.tenantId },
+    );
+    process.stdout.write(
+      [
+        "",
+        "  A demo customer was created.",
+        "",
+        `    X-SC-USER-UUID: ${demo.externalUserUuid}`,
+        "",
+        ...demo.accounts.map(
+          (account) => `    ${account.accountReference}  — ${account.shows}`,
+        ),
+        "",
+        "  Mint the matching assertion with `pnpm assertion`.",
+        "",
+      ].join("\n"),
+    );
+  }
 
   // Printed to stdout rather than logged: the logger's field allow-list would
   // drop it, and it *should* — a secret in a log line is a secret in a log

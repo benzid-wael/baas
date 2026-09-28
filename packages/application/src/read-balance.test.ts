@@ -238,8 +238,22 @@ describe("when the provider is unreachable", () => {
     expect(serialised).not.toContain("keel");
   });
 
-  it("falls back when the adapter is missing entirely", async () => {
+  it("says `never_observed` when there is no adapter, not `unreachable`", async () => {
+    // Correction C15. Claiming the provider was unreachable when we never
+    // contacted it is a false statement about the provider, and it made
+    // `never_observed` a variant nothing produced.
     const view = await reader(undefined).forAccount(TENANT, ACCOUNT());
+    expect(view).toEqual({
+      kind: "unavailable",
+      reason: "never_observed",
+    });
+  });
+
+  it("says `provider_unreachable` only when the call actually failed", async () => {
+    const view = await reader(providerThat("throws")).forAccount(
+      TENANT,
+      ACCOUNT(),
+    );
     expect(view).toEqual({
       kind: "unavailable",
       reason: "provider_unreachable",
