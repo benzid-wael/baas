@@ -30,6 +30,13 @@ const SYSTEM_STATE = {
   schema: { matches: true, undeclared: [], missing: [] },
   outbox: { unresolved: 0, depths: [] },
   inbox: { unprocessed: 0, rejectedSignatures: 0 },
+  capabilities: {
+    service: "baas",
+    appEnv: "dev",
+    tenants: ["sc"],
+    providers: [],
+    checkedAt: "2026-09-28T10:00:00.000Z",
+  },
 };
 
 function memoryStore(initial: Record<string, string> = {}): FlowStore {
@@ -181,7 +188,7 @@ describe("signed in", () => {
 
   it("shows the system state the session fetched", async () => {
     await signedIn();
-    expect(screen.getByText(/matches the declaration/i)).toBeDefined();
+    expect(screen.getByText(/matches what this build declares/i)).toBeDefined();
   });
 
   it("lands on System, because it reads the API and the search screen does not", async () => {

@@ -70,6 +70,15 @@ function server(): Parameters<typeof request>[0] {
 
 const asOperator = () => ({ authorization: `Bearer ${sessionToken}` });
 
+/** This fixture does not exercise capabilities; an empty report says so. */
+const EMPTY_CAPABILITIES = {
+  service: "baas",
+  appEnv: "dev" as const,
+  tenants: [],
+  providers: [],
+  checkedAt: "2026-09-28T00:00:00.000Z",
+};
+
 beforeAll(async () => {
   harness = await startDatabase({
     migrationsDir: join(
@@ -168,7 +177,12 @@ beforeAll(async () => {
     providers: [
       { provide: OPERATOR_READS, useValue: reads },
       { provide: API_CLIENT_ADMIN, useValue: {} },
-      { provide: SYSTEM_READS, useValue: new SystemReads(scope, clock) },
+      {
+        provide: SYSTEM_READS,
+        useValue: new SystemReads(scope, clock, {
+          report: () => EMPTY_CAPABILITIES,
+        }),
+      },
       {
         provide: APP_GUARD,
         inject: [Reflector],

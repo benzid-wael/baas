@@ -1,4 +1,5 @@
 import type { Clock, Instant } from "@baas/domain";
+import type { CapabilityReport } from "./capabilities.js";
 import { Duration } from "@baas/domain";
 import type { ScopedDatabase, TenantScope } from "@baas/persistence";
 import { DECLARED_SCHEMA, compareSchema, introspect } from "@baas/persistence";
@@ -71,6 +72,15 @@ export interface SystemState {
   readonly schema: SchemaState;
   readonly outbox: OutboxState;
   readonly inbox: InboxState;
+  /**
+   * What is on, and why (MP-8, finding A8).
+   *
+   * Carried here rather than left at `/system/capabilities`, because that
+   * route authenticates with an **API client credential** and the portal is a
+   * browser that must never hold one. Two surfaces answering the same question
+   * from the same registry is fine; a console that cannot ask it is not.
+   */
+  readonly capabilities: CapabilityReport;
 }
 
 /** Outbox states that mean "nobody has decided what happened yet". */
@@ -80,6 +90,7 @@ export class SystemReads {
   constructor(
     private readonly scope: TenantScope,
     private readonly clock: Clock,
+    private readonly capabilities: { report(): CapabilityReport },
   ) {}
 
   async state(tenantId: string): Promise<SystemState> {
@@ -90,6 +101,7 @@ export class SystemReads {
     return {
       migrations,
       schema,
+      capabilities: this.capabilities.report(),
       ...(await this.scope.run(tenantId, async (db) => ({
         outbox: await this.outbox(db),
         inbox: await this.inbox(db),

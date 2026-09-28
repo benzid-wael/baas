@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { errorResponseSchema } from "./errors.js";
 import {
   currencyCodeSchema,
@@ -10,6 +9,7 @@ import {
 import {
   accountListSchema,
   accountSchema,
+  capabilityReportSchema,
   apiClientListSchema,
   grantedScopeSchema,
   revokedScopeSchema,
@@ -25,7 +25,7 @@ import {
   transactionPageSchema,
   transactionSchema,
 } from "./reads.js";
-import { operationIdSchema } from "./primitives.js";
+
 import { RegistryBuilder } from "./registry.js";
 import type { ContractRegistry } from "./registry.js";
 
@@ -43,30 +43,14 @@ import type { ContractRegistry } from "./registry.js";
  */
 export const OPENAPI_TITLE = "baas";
 
+export { capabilityReportSchema } from "./reads.js";
+export type { CapabilityReportWire } from "./reads.js";
+
 /**
  * Bumped by hand when a breaking change is intended. `pnpm check:openapi`
  * refuses a breaking change that leaves this alone.
  */
 export const OPENAPI_VERSION = "0.2.0";
-
-/** Reported by `/system/capabilities`: what is on, and why (RFC-BaaS §5.5). */
-export const capabilityReportSchema = z.object({
-  service: z.string(),
-  appEnv: z.enum(["dev", "stage", "production"]),
-  tenants: z.array(slugSchema),
-  providers: z.array(
-    z.object({
-      provider: slugSchema,
-      available: z.boolean(),
-      /** Machine-readable, so routing and the portal agree (finding A1). */
-      reason: z.string().optional(),
-      operations: z.array(operationIdSchema),
-    }),
-  ),
-  checkedAt: instantSchema,
-});
-
-export type CapabilityReportWire = z.infer<typeof capabilityReportSchema>;
 
 export function buildRegistry(): ContractRegistry {
   return new RegistryBuilder()

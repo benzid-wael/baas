@@ -12,9 +12,11 @@ import {
   SequenceIdGenerator,
   TestClock,
   createLogger,
+  formatInstant,
   parseInstant,
   toJsDate,
 } from "@baas/platform";
+import type { AccountReadPort } from "@baas/domain";
 import {
   Inbox,
   OperatorRepository,
@@ -24,7 +26,7 @@ import {
 } from "@baas/persistence";
 import { startDatabase } from "@baas/persistence/testing";
 import type { DatabaseHarness } from "@baas/persistence/testing";
-import { SystemReads } from "@baas/application";
+import { CapabilityRegistry, SystemReads } from "@baas/application";
 import {
   API_CLIENT_ADMIN,
   AuthorizationPolicyGuard,
@@ -83,6 +85,9 @@ interface SystemBody {
     oldestUnprocessedAgeSeconds?: number;
     rejectedSignatures: number;
   };
+  capabilities: {
+    providers: { provider: string; available: boolean; reason?: string }[];
+  };
 }
 
 async function systemState(): Promise<SystemBody> {
@@ -136,7 +141,23 @@ beforeAll(async () => {
     )
   ).token;
 
-  const system = new SystemReads(scope, clock);
+  // A real registry: two providers declared, one buildable and one not, so the
+  // screen has both an `available` and a reason to show (MP-8).
+  const capabilities = new CapabilityRegistry({
+    serviceName: "baas",
+    appEnv: "dev",
+    adapters: [{ providerId: "keel", accounts: {} as AccountReadPort }],
+    supportedProviders: ["keel", "ruya"],
+    deployment: new Map([
+      ["keel", { configured: true }],
+      ["ruya", { configured: false }],
+      ["lulu", { configured: true }],
+    ]),
+    tenants: ["sc"],
+    clock,
+    formatInstant,
+  });
+  const system = new SystemReads(scope, clock, capabilities);
 
   @Module({
     controllers: [PlatformReadController],
@@ -328,6 +349,32 @@ describe("the inbox", () => {
     const body = await systemState();
     expect(body.inbox.unprocessed).toBe(0);
     expect(body.inbox.oldestUnprocessedAgeSeconds).toBeUndefined();
+  });
+});
+
+describe("what is on, and why (MP-8, finding A8)", () => {
+  it("reports an available provider as available, with no reason", async () => {
+    const [keel] = (await systemState()).capabilities.providers.filter(
+      (provider) => provider.provider === "keel",
+    );
+    expect(keel).toEqual({
+      provider: "keel",
+      available: true,
+      operations: ["account.read"],
+    });
+  });
+
+  it("distinguishes a provider missing a setting from one this build cannot make", async () => {
+    // The whole point of a closed set of four. `not_configured` is a job for
+    // whoever holds the credentials; `adapter_absent` is a job for whoever
+    // ships the code. A red dot says neither.
+    const providers = (await systemState()).capabilities.providers;
+    expect(
+      providers.find((provider) => provider.provider === "ruya")?.reason,
+    ).toBe("not_configured");
+    expect(
+      providers.find((provider) => provider.provider === "lulu")?.reason,
+    ).toBe("adapter_absent");
   });
 });
 

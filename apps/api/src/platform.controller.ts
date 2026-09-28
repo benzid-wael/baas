@@ -443,6 +443,18 @@ function toSystemStateWire(state: SystemState): SystemStateWire {
           }),
       rejectedSignatures: state.inbox.rejectedSignatures,
     },
+    capabilities: {
+      service: state.capabilities.service,
+      appEnv: state.capabilities.appEnv,
+      tenants: [...state.capabilities.tenants],
+      providers: state.capabilities.providers.map((provider) => ({
+        provider: provider.provider,
+        available: provider.available,
+        ...(provider.reason === undefined ? {} : { reason: provider.reason }),
+        operations: [...provider.operations],
+      })),
+      checkedAt: state.capabilities.checkedAt,
+    },
   };
 }
 

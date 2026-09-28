@@ -141,7 +141,7 @@ export function composeApi(options: ComposeApiOptions): ApiGraph {
           audit,
           new ProviderRequestLogRepository(),
         ),
-        system: new SystemReads(scope, clock),
+        system: new SystemReads(scope, clock, capabilities),
         apiClients: new ApiClientAdmin(
           scope,
           new ApiClientAdminRepository(clock, ids),

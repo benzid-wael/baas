@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   instantSchema,
   moneySchema,
+  operationIdSchema,
   pageOf,
   scopeSchema,
   slugSchema,
@@ -185,7 +186,32 @@ export const providerCallSchema = providerCallSummarySchema.extend({
   errorMessage: z.string().nullable(),
 });
 
-/** What the service can tell an operator about itself (MP-5, New-27). */
+/**
+ * Reported by `/system/capabilities` and by `/platform/system`.
+ *
+ * Moved here from `contracts.ts` when the operator surface needed it: that
+ * module imports this one, so a reference the other way would be circular.
+ *
+ * Originally: what is on, and why (RFC-BaaS §5.5).: what is on, and why */
+export const capabilityReportSchema = z.object({
+  service: z.string(),
+  appEnv: z.enum(["dev", "stage", "production"]),
+  tenants: z.array(slugSchema),
+  providers: z.array(
+    z.object({
+      provider: slugSchema,
+      available: z.boolean(),
+      /** Machine-readable, so routing and the portal agree (finding A1). */
+      reason: z.string().optional(),
+      operations: z.array(operationIdSchema),
+    }),
+  ),
+  checkedAt: instantSchema,
+});
+
+export type CapabilityReportWire = z.infer<typeof capabilityReportSchema>;
+
+/** What the service can tell an operator about itself (MP-5, MP-8, New-27). */
 export const systemStateSchema = z.object({
   migrations: z.object({
     applied: z.array(z.string().min(1)),
@@ -212,6 +238,11 @@ export const systemStateSchema = z.object({
     oldestUnprocessedAgeSeconds: z.number().int().nonnegative().optional(),
     rejectedSignatures: z.number().int().nonnegative(),
   }),
+  /**
+   * What is on and why. The same report `/system/capabilities` serves, on the
+   * surface a browser can actually reach.
+   */
+  capabilities: capabilityReportSchema,
 });
 
 export type ProviderCallSummaryWire = z.infer<typeof providerCallSummarySchema>;
