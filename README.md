@@ -56,6 +56,12 @@ is what refuses it.
 Everything else in the RFC's layout arrives with its task. The workspace is
 built one package at a time, and each arrives with its gate already passing.
 
+## Running it by hand
+
+[`docs/manual-test.md`](docs/manual-test.md) is the walkthrough: seed, start,
+and the exact responses to expect — plus an honest list of what cannot be
+exercised yet and why.
+
 ## Docker
 
 The daemon is **not assumed to be local** — `DOCKER_HOST` may point at a

@@ -1,5 +1,9 @@
 # Running with Docker
 
+> Looking for the walkthrough — what to run, what to expect, and what does not
+> work yet? See [`manual-test.md`](manual-test.md). This page is about the
+> daemon and the compose topology.
+
 The Docker daemon is **not assumed to be on your machine**. `DOCKER_HOST` may
 point at a devserver, and two things follow from that:
 
