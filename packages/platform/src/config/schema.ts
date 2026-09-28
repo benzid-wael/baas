@@ -19,18 +19,181 @@ import { MIN_SECRET_LENGTH, looksLikePlaceholder } from "./secrets.js";
  */
 
 /**
- * Defaults for the keys the tier contract asserts on.
+ * What a hardened tier demands, as a list (New-9).
+ *
+ * One declaration per rule. The contract is a loop over this and the schema's
+ * defaults are derived from it, so a rule cannot exist in one place and not
+ * the other — which was the duplication: the schema knew the shape, the
+ * contract knew the requirement, and a rule added to one and not the other is
+ * simply not enforced, silently.
+ *
+ * **Deliberately a table and not a generator.** It would be possible to build
+ * the whole `globalSchema` from this, and the result would be a configuration
+ * nobody could read. What production demands has to stay legible as a list;
+ * the schema keeps its own shapes, and only the defaults and the requirements
+ * come from here.
+ *
+ * `because` is not decoration. A refusal that says "DATABASE_SSL must be true"
+ * gets argued with at 2am; one that says why does not.
+ */
+export type TierRule =
+  | {
+      readonly kind: "boolean";
+      readonly envKey: string;
+      readonly path: readonly string[];
+      readonly mustBe: boolean;
+      readonly fallback: boolean;
+      readonly because: string;
+    }
+  | {
+      readonly kind: "literal";
+      readonly envKey: string;
+      readonly path: readonly string[];
+      readonly mustBe: string;
+      readonly fallback: string;
+      readonly because: string;
+    }
+  | {
+      readonly kind: "present";
+      readonly envKey: string;
+      readonly path: readonly string[];
+      readonly because: string;
+    }
+  | {
+      readonly kind: "presentWhen";
+      readonly envKey: string;
+      readonly path: readonly string[];
+      /** Only required when another key holds this value. */
+      readonly when: { readonly envKey: string; readonly equals: string };
+      readonly because: string;
+    }
+  | {
+      readonly kind: "noPlaceholder";
+      readonly envKey: string;
+      readonly path: readonly string[];
+      readonly because: string;
+    };
+
+export const TIER_RULES: readonly TierRule[] = [
+  {
+    kind: "boolean",
+    envKey: "DATABASE_SSL",
+    path: ["database", "ssl"],
+    mustBe: true,
+    fallback: false,
+    because: "personal data must not cross the network in clear",
+  },
+  {
+    kind: "boolean",
+    envKey: "DATABASE_MIGRATIONS_RUN",
+    path: ["database", "migrationsRun"],
+    mustBe: true,
+    fallback: true,
+    because: "migrations are the only source of schema truth",
+  },
+  {
+    kind: "literal",
+    envKey: "THROTTLE_STORAGE",
+    path: ["throttle", "storage"],
+    mustBe: "redis",
+    fallback: "memory",
+    because: "in-memory throttling does not survive more than one replica",
+  },
+  {
+    kind: "presentWhen",
+    envKey: "REDIS_URL",
+    path: ["throttle", "redisUrl"],
+    when: { envKey: "THROTTLE_STORAGE", equals: "redis" },
+    because: "redis throttling needs somewhere to count",
+  },
+  {
+    kind: "boolean",
+    envKey: "OPENAPI_ENABLED",
+    path: ["openApiEnabled"],
+    mustBe: false,
+    fallback: true,
+    because: "the full API surface is not a public document",
+  },
+  {
+    kind: "present",
+    envKey: "OIDC_ISSUER",
+    path: ["oidc", "issuer"],
+    because:
+      "an operator console without an identity provider is an open console",
+  },
+  {
+    kind: "present",
+    envKey: "OIDC_AUDIENCE",
+    path: ["oidc", "audience"],
+    because:
+      "an operator console without an identity provider is an open console",
+  },
+  {
+    kind: "present",
+    envKey: "OIDC_JWKS_URI",
+    path: ["oidc", "jwksUri"],
+    because:
+      "an operator console without an identity provider is an open console",
+  },
+  {
+    kind: "present",
+    envKey: "APM_SERVER_URL",
+    path: ["observability", "apmServerUrl"],
+    because: "a service with no traces cannot be diagnosed",
+  },
+  {
+    kind: "noPlaceholder",
+    envKey: "PROVIDER_CREDENTIAL_ENCRYPTION_KEY",
+    path: ["providerCredentialEncryptionKey"],
+    because: "it encrypts provider credentials at rest",
+  },
+  {
+    kind: "noPlaceholder",
+    envKey: "DATABASE_PASSWORD",
+    path: ["database", "password"],
+    because: "it is the database password",
+  },
+];
+
+/**
+ * Defaults for the keys the tier contract asserts on, **derived** from the
+ * rules above rather than written beside them.
  *
  * Shared by the schema and the contract so the two cannot disagree about what
  * an unset variable means — which would make the contract assert one thing and
  * the service run another.
  */
-export const TIER_DEFAULTS = {
-  DATABASE_SSL: false,
-  DATABASE_MIGRATIONS_RUN: true,
-  THROTTLE_STORAGE: "memory",
-  OPENAPI_ENABLED: true,
-} as const;
+export const TIER_DEFAULTS: Readonly<Record<string, boolean | string>> =
+  Object.fromEntries(
+    TIER_RULES.flatMap((rule) =>
+      rule.kind === "boolean" || rule.kind === "literal"
+        ? [[rule.envKey, rule.fallback]]
+        : [],
+    ),
+  );
+
+/**
+ * The default for a key, read from the rule that governs it.
+ *
+ * Throws **at module load** when there is no such rule, which makes the
+ * duplication New-9 was about impossible rather than merely tested: a schema
+ * field cannot take a tier default unless a tier rule exists for it, and the
+ * service refuses to start otherwise. A test could only have noticed.
+ */
+function tierDefault(envKey: string, kind: "boolean"): boolean;
+function tierDefault(envKey: string, kind: "literal"): string;
+function tierDefault(
+  envKey: string,
+  kind: "boolean" | "literal",
+): boolean | string {
+  const rule = TIER_RULES.find((candidate) => candidate.envKey === envKey);
+  if (rule === undefined || rule.kind !== kind) {
+    throw new Error(
+      `No ${kind} tier rule for ${envKey}. A schema default and a tier requirement are one declaration (New-9); add the rule to TIER_RULES.`,
+    );
+  }
+  return rule.fallback;
+}
 
 const booleanFromEnv = z
   .union([z.boolean(), z.enum(["true", "false", "1", "0"])])
@@ -60,10 +223,12 @@ export const databaseSchema = z.object({
   password: z.string().min(1),
   database: z.string().min(1).default("baas"),
   /** TLS in transit. The incumbent runs without it; that is a live finding. */
-  ssl: booleanFromEnv.default(TIER_DEFAULTS.DATABASE_SSL),
+  ssl: booleanFromEnv.default(tierDefault("DATABASE_SSL", "boolean")),
   poolMax: z.coerce.number().int().min(1).max(100).default(10),
   /** Migrations are applied at boot. There is no `synchronize` here to disable. */
-  migrationsRun: booleanFromEnv.default(TIER_DEFAULTS.DATABASE_MIGRATIONS_RUN),
+  migrationsRun: booleanFromEnv.default(
+    tierDefault("DATABASE_MIGRATIONS_RUN", "boolean"),
+  ),
 });
 
 export const observabilitySchema = z.object({
@@ -127,7 +292,9 @@ export const oidcSchema = z.object({
 });
 
 export const throttleSchema = z.object({
-  storage: z.enum(["memory", "redis"]).default(TIER_DEFAULTS.THROTTLE_STORAGE),
+  storage: z
+    .enum(["memory", "redis"])
+    .default(tierDefault("THROTTLE_STORAGE", "literal") as "memory" | "redis"),
   redisUrl: z.url().optional(),
 });
 
@@ -147,7 +314,9 @@ export const globalSchema = z.object({
         .map((origin) => origin.trim())
         .filter((origin) => origin.length > 0),
     ),
-  openApiEnabled: booleanFromEnv.default(TIER_DEFAULTS.OPENAPI_ENABLED),
+  openApiEnabled: booleanFromEnv.default(
+    tierDefault("OPENAPI_ENABLED", "boolean"),
+  ),
   database: databaseSchema,
   throttle: throttleSchema,
   observability: observabilitySchema,
@@ -273,70 +442,61 @@ export function applyTierContract(
     return;
   }
 
-  if (!boolFromEnv(env["DATABASE_SSL"], TIER_DEFAULTS.DATABASE_SSL)) {
-    addIssue(
-      ["database", "ssl"],
-      `${appEnv} requires DATABASE_SSL=true; personal data must not cross the network in clear`,
-    );
-  }
-  if (
-    !boolFromEnv(
-      env["DATABASE_MIGRATIONS_RUN"],
-      TIER_DEFAULTS.DATABASE_MIGRATIONS_RUN,
-    )
-  ) {
-    addIssue(
-      ["database", "migrationsRun"],
-      `${appEnv} requires DATABASE_MIGRATIONS_RUN=true; migrations are the only source of schema truth`,
-    );
-  }
+  // One pass over the rules. Every rule reports independently — the contract
+  // exists so a deployment learns all of its problems at once rather than one
+  // per restart, and a loop that stopped at the first would reintroduce
+  // exactly that.
+  for (const rule of TIER_RULES) {
+    const value = env[rule.envKey];
 
-  const storage = env["THROTTLE_STORAGE"] ?? TIER_DEFAULTS.THROTTLE_STORAGE;
-  if (storage !== "redis") {
-    addIssue(
-      ["throttle", "storage"],
-      `${appEnv} requires THROTTLE_STORAGE=redis; in-memory throttling does not survive more than one replica`,
-    );
-  } else if ((env["REDIS_URL"] ?? "") === "") {
-    addIssue(
-      ["throttle", "redisUrl"],
-      "REDIS_URL is required when THROTTLE_STORAGE=redis",
-    );
-  }
-
-  if (boolFromEnv(env["OPENAPI_ENABLED"], TIER_DEFAULTS.OPENAPI_ENABLED)) {
-    addIssue(
-      ["openApiEnabled"],
-      `${appEnv} requires OPENAPI_ENABLED=false; the full API surface is not a public document`,
-    );
-  }
-  for (const [key, path] of [
-    ["OIDC_ISSUER", ["oidc", "issuer"]],
-    ["OIDC_AUDIENCE", ["oidc", "audience"]],
-    ["OIDC_JWKS_URI", ["oidc", "jwksUri"]],
-  ] as const) {
-    if ((env[key] ?? "") === "") {
-      addIssue(
-        path,
-        `${appEnv} requires ${key}; an operator console without an identity provider is an open console`,
-      );
-    }
-  }
-
-  if ((env["APM_SERVER_URL"] ?? "") === "") {
-    addIssue(
-      ["observability", "apmServerUrl"],
-      `${appEnv} requires APM_SERVER_URL; a service with no traces cannot be diagnosed`,
-    );
-  }
-
-  for (const [path, key] of [
-    [["providerCredentialEncryptionKey"], "PROVIDER_CREDENTIAL_ENCRYPTION_KEY"],
-    [["database", "password"], "DATABASE_PASSWORD"],
-  ] as const) {
-    const value = env[key];
-    if (value !== undefined && looksLikePlaceholder(value)) {
-      addIssue(path, `${appEnv} refuses a placeholder value in ${key}`);
+    switch (rule.kind) {
+      case "boolean": {
+        if (boolFromEnv(value, rule.fallback) !== rule.mustBe) {
+          addIssue(
+            rule.path,
+            `${appEnv} requires ${rule.envKey}=${String(rule.mustBe)}; ${rule.because}`,
+          );
+        }
+        break;
+      }
+      case "literal": {
+        if ((value ?? rule.fallback) !== rule.mustBe) {
+          addIssue(
+            rule.path,
+            `${appEnv} requires ${rule.envKey}=${rule.mustBe}; ${rule.because}`,
+          );
+        }
+        break;
+      }
+      case "present": {
+        if ((value ?? "") === "") {
+          addIssue(
+            rule.path,
+            `${appEnv} requires ${rule.envKey}; ${rule.because}`,
+          );
+        }
+        break;
+      }
+      case "presentWhen": {
+        const governing =
+          env[rule.when.envKey] ?? TIER_DEFAULTS[rule.when.envKey] ?? undefined;
+        if (governing === rule.when.equals && (value ?? "") === "") {
+          addIssue(
+            rule.path,
+            `${rule.envKey} is required when ${rule.when.envKey}=${rule.when.equals}; ${rule.because}`,
+          );
+        }
+        break;
+      }
+      case "noPlaceholder": {
+        if (value !== undefined && looksLikePlaceholder(value)) {
+          addIssue(
+            rule.path,
+            `${appEnv} refuses a placeholder value in ${rule.envKey}; ${rule.because}`,
+          );
+        }
+        break;
+      }
     }
   }
 
