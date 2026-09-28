@@ -10,7 +10,11 @@ import {
 import {
   accountListSchema,
   accountSchema,
+  apiClientListSchema,
+  grantedScopeSchema,
+  revokedScopeSchema,
   customerSummarySchema,
+  scopeHistorySchema,
   providerCallPageSchema,
   providerCallSchema,
   providerCallSummarySchema,
@@ -79,6 +83,10 @@ export function buildRegistry(): ContractRegistry {
     .schema("ProviderCallPage", providerCallPageSchema)
     .schema("ProviderCall", providerCallSchema)
     .schema("SystemState", systemStateSchema)
+    .schema("ApiClientList", apiClientListSchema)
+    .schema("ScopeHistory", scopeHistorySchema)
+    .schema("GrantedScope", grantedScopeSchema)
+    .schema("RevokedScope", revokedScopeSchema)
     .schema("AccountList", accountListSchema)
     .schema("Balance", balanceSchema)
     .schema("Transaction", transactionSchema)
@@ -163,6 +171,56 @@ export function buildRegistry(): ContractRegistry {
           "Migrations, schema drift, and outbox and inbox depths. Not audited: it carries no personal data and a dashboard polls.",
         responses: {
           "200": { description: "The system's state", schema: "SystemState" },
+        },
+      },
+    })
+    .path("/platform/api-clients", {
+      get: {
+        operationId: "listApiClients",
+        summary: "The tenant's API clients and the scopes each holds today.",
+        responses: {
+          "200": { description: "The clients", schema: "ApiClientList" },
+        },
+      },
+    })
+    .path("/platform/api-clients/{id}/scopes", {
+      get: {
+        operationId: "scopeHistory",
+        summary:
+          "Every grant this client has ever had. Revoked grants are kept.",
+        responses: {
+          "200": { description: "The grant history", schema: "ScopeHistory" },
+          "404": { description: "No such API client", schema: "ErrorResponse" },
+        },
+      },
+      post: {
+        operationId: "grantScope",
+        summary:
+          "Grant one scope, with a reason. There is deliberately no route that takes a list.",
+        responses: {
+          "201": { description: "Granted", schema: "GrantedScope" },
+          "400": {
+            description: "Unknown scope, or no reason given",
+            schema: "ErrorResponse",
+          },
+          "404": { description: "No such API client", schema: "ErrorResponse" },
+          "409": {
+            description: "That scope is already granted",
+            schema: "ErrorResponse",
+          },
+        },
+      },
+    })
+    .path("/platform/api-clients/{id}/scopes/{scope}", {
+      delete: {
+        operationId: "revokeScope",
+        summary: "Revoke one scope. The grant row is stamped, never deleted.",
+        responses: {
+          "200": {
+            description: "Whether a live grant was revoked",
+            schema: "RevokedScope",
+          },
+          "404": { description: "No such API client", schema: "ErrorResponse" },
         },
       },
     })

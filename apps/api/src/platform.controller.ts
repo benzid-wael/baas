@@ -1,7 +1,12 @@
 import {
   BadRequestException,
+  Body,
+  ConflictException,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  Post,
   Inject,
   NotFoundException,
   Param,
@@ -15,15 +20,21 @@ import type {
   ProviderCallPageWire,
   ProviderCallSummaryWire,
   ProviderCallWire,
+  ApiClientListWire,
+  ScopeHistoryWire,
   SystemStateWire,
   TransactionWire,
 } from "@baas/contracts";
+import { KNOWN_SCOPES } from "@baas/contracts";
 import type {
+  ApiClientAdmin,
   OperatorAccountView,
   OperatorReads,
   SystemReads,
   SystemState,
 } from "@baas/application";
+import { ApiClientNotFoundError } from "@baas/application";
+import { ScopeAlreadyGrantedError } from "@baas/persistence";
 import type { ProjectedTransaction, RecordedCall } from "@baas/persistence";
 import { formatInstant, fromJsDate } from "@baas/platform";
 import { OperatorSurface, Roles } from "./decorators.js";
@@ -33,6 +44,7 @@ import type { RequestWithPrincipal } from "./principal.js";
 
 export const OPERATOR_READS = "baas:OperatorReads";
 export const SYSTEM_READS = "baas:SystemReads";
+export const API_CLIENT_ADMIN = "baas:ApiClientAdmin";
 
 const MAX_PAGE = 200;
 const DEFAULT_PAGE = 50;
@@ -50,6 +62,7 @@ export class PlatformReadController {
   constructor(
     @Inject(OPERATOR_READS) private readonly reads: OperatorReads,
     @Inject(SYSTEM_READS) private readonly system: SystemReads,
+    @Inject(API_CLIENT_ADMIN) private readonly apiClients: ApiClientAdmin,
   ) {}
 
   /**
@@ -211,6 +224,124 @@ export class PlatformReadController {
     };
   }
 
+  /**
+   * The tenant's API clients, with the scopes each holds today (MP-3).
+   *
+   * Findings D2 and F2 are two halves of one defect and fixing either alone
+   * reproduces it. The incumbent's `PATCH` replaces the scope array wholesale
+   * and writes no audit row; its portal cannot edit scopes at all, so the
+   * changes are made directly in the database, where there is certainly no
+   * audit row. An editor without the audit would just move the unaudited
+   * change into the console.
+   *
+   * **There is no route here that takes a list of scopes.** One at a time,
+   * with a reason.
+   */
+  @Get("api-clients")
+  @OperatorSurface()
+  @Roles("operator", "admin")
+  async apiClientList(
+    @Req() request: RequestWithPrincipal,
+  ): Promise<ApiClientListWire> {
+    const { tenantId } = operator(request);
+    const clients = await this.apiClients.list(tenantId);
+    return {
+      clients: clients.map((client) => ({
+        id: client.id,
+        clientId: client.clientId,
+        name: client.name,
+        disabled: client.disabled,
+        createdAt: formatInstant(fromJsDate(client.createdAt)),
+        liveScopes: [...client.liveScopes],
+      })),
+    };
+  }
+
+  /** Every grant this client has ever had. Revoked ones stay. */
+  @Get("api-clients/:id/scopes")
+  @OperatorSurface()
+  @Roles("operator", "admin")
+  async scopeHistory(
+    @Req() request: RequestWithPrincipal,
+    @Param("id") id: string,
+  ): Promise<ScopeHistoryWire> {
+    const { tenantId } = operator(request);
+    return {
+      grants: (
+        await notFoundIfMissing(() => this.apiClients.history(tenantId, id))
+      ).map((grant) => ({
+        id: grant.id,
+        scope: grant.scope,
+        grantedAt: formatInstant(fromJsDate(grant.grantedAt)),
+        grantedBy: grant.grantedBy,
+        revokedAt:
+          grant.revokedAt === null
+            ? null
+            : formatInstant(fromJsDate(grant.revokedAt)),
+        revokedBy: grant.revokedBy,
+        reason: grant.reason,
+        live: grant.revokedAt === null,
+      })),
+    };
+  }
+
+  /**
+   * Grant one scope.
+   *
+   * **`admin`, not `operator`.** Giving a credential access to customer data
+   * is a privilege change, and the role that reads should not be the role that
+   * widens what can be read.
+   */
+  @Post("api-clients/:id/scopes")
+  @OperatorSurface()
+  @Roles("admin")
+  @HttpCode(201)
+  async grantScope(
+    @Req() request: RequestWithPrincipal,
+    @Param("id") id: string,
+    @Body() body: { scope?: unknown; reason?: unknown },
+  ): Promise<{ granted: string }> {
+    const { tenantId, actor } = operator(request);
+    const scope = knownScope(body.scope);
+    const reason = requiredReason(body.reason);
+
+    try {
+      await notFoundIfMissing(() =>
+        this.apiClients.grant(tenantId, actor, {
+          apiClientId: id,
+          scope,
+          reason,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof ScopeAlreadyGrantedError) {
+        // A double-click, or two operators on the same screen. Saying so is
+        // more useful than silently doing nothing, which is what a wholesale
+        // array replacement would have done.
+        throw new ConflictException("that scope is already granted");
+      }
+      throw error;
+    }
+    return { granted: scope };
+  }
+
+  /** Revoke one scope. The grant row stays, stamped. */
+  @Delete("api-clients/:id/scopes/:scope")
+  @OperatorSurface()
+  @Roles("admin")
+  async revokeScope(
+    @Req() request: RequestWithPrincipal,
+    @Param("id") id: string,
+    @Param("scope") scope: string,
+  ): Promise<{ revoked: boolean }> {
+    const { tenantId, actor } = operator(request);
+    return {
+      revoked: await notFoundIfMissing(() =>
+        this.apiClients.revoke(tenantId, actor, id, scope),
+      ),
+    };
+  }
+
   /** One call, bodies included. A separate act, separately audited. */
   @Get("provider-requests/:id")
   @OperatorSurface()
@@ -240,6 +371,45 @@ export class PlatformReadController {
  * reference to the application's own array, which is how a "read" model ends
  * up mutated by a serialiser somewhere downstream.
  */
+/** `ApiClientNotFoundError` is a 404, and nothing else here is. */
+async function notFoundIfMissing<T>(work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    if (error instanceof ApiClientNotFoundError) {
+      throw new NotFoundException("no such API client");
+    }
+    throw error;
+  }
+}
+
+/**
+ * A scope this build actually understands.
+ *
+ * A typo — `mobile:account` — is accepted by any string column, shows in the
+ * console as granted, and grants nothing: the operator believes access was
+ * given and the caller gets 403s that look like a bug somewhere else.
+ */
+function knownScope(value: unknown): string {
+  if (
+    typeof value !== "string" ||
+    !(KNOWN_SCOPES as readonly string[]).includes(value)
+  ) {
+    throw new BadRequestException(
+      `scope must be one of: ${KNOWN_SCOPES.join(", ")}`,
+    );
+  }
+  return value;
+}
+
+/** Why, in the operator's words. The column is not nullable for this reason. */
+function requiredReason(value: unknown): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new BadRequestException("a reason is required");
+  }
+  return value.trim();
+}
+
 function toSystemStateWire(state: SystemState): SystemStateWire {
   return {
     migrations: {

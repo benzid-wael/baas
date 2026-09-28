@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import type { Kysely } from "kysely";
 import type { Clock, IdGenerator } from "@baas/domain";
 import { toJsDate } from "@baas/platform";
+import { TenantScope } from "@baas/persistence";
 import type { Database } from "@baas/persistence";
 
 /**
@@ -115,20 +116,26 @@ export async function seed(
     })
     .execute();
 
-  for (const scope of request.scopes ?? []) {
-    await db
-      .insertInto("api_client_scope")
-      .values({
-        id: ids.next(),
-        api_client_id: apiClientId,
-        scope,
-        granted_at: now,
-        granted_by: tenantId,
-        revoked_at: null,
-        revoked_by: null,
-        reason: "seeded for local development",
-      })
-      .execute();
+  // Through `runAsScopeAdmin`, the same door an operator's grant goes through
+  // (MP-3). A seed that could write this table directly would be a second way
+  // in, and the trigger exists precisely so there is only one.
+  const scope = new TenantScope(db);
+  for (const granted of request.scopes ?? []) {
+    await scope.runAsScopeAdmin(tenantId, (trx) =>
+      trx
+        .insertInto("api_client_scope")
+        .values({
+          id: ids.next(),
+          api_client_id: apiClientId,
+          scope: granted,
+          granted_at: now,
+          granted_by: tenantId,
+          revoked_at: null,
+          revoked_by: null,
+          reason: "seeded for local development",
+        })
+        .execute(),
+    );
   }
 
   return { tenantId, created: true, clientSecret };

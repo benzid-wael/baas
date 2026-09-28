@@ -111,6 +111,33 @@ export class TenantScope {
   }
 
   /**
+   * Run `work` with scope administration permitted (MP-3).
+   *
+   * `api_client_scope` is readable by the application role and writable by
+   * nobody: a trigger refuses an insert or an update unless `app.scope_admin`
+   * is set. Without that, granting an operator the ability to edit scopes
+   * would mean granting it to every mobile request too, because they share the
+   * role.
+   *
+   * Separate and named for the same reason `runAsProviderSync` and
+   * `runAsProjector` are: the one path allowed to do this says so, and
+   * everything else structurally cannot.
+   */
+  async runAsScopeAdmin<T>(
+    tenantId: string,
+    work: (db: ScopedDatabase) => Promise<T>,
+  ): Promise<T> {
+    return this.db.transaction().execute(async (trx) => {
+      await sql`SET LOCAL ROLE ${sql.raw(APPLICATION_ROLE)}`.execute(trx);
+      await sql`SELECT set_config('app.tenant_id', ${tenantId}, true)`.execute(
+        trx,
+      );
+      await sql`SELECT set_config('app.scope_admin', 'on', true)`.execute(trx);
+      return work(trx as ScopedDatabase);
+    });
+  }
+
+  /**
    * Read a registry table — `tenant`, `api_client`, `api_client_scope` —
    * which by definition cannot be tenant-scoped, because reading it is how the
    * tenant is established.

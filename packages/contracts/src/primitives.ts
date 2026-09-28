@@ -117,3 +117,22 @@ export function pageOf<T extends z.ZodType>(item: T) {
     nextCursor: cursorSchema.optional(),
   });
 }
+
+/**
+ * Every scope this build understands (MP-3).
+ *
+ * A closed set, and it lives in `contracts` rather than beside the controller
+ * that consumes it, because the operator console has to be able to *offer* the
+ * list and the service has to be able to refuse anything outside it.
+ *
+ * **Granting an unknown scope is worse than refusing one.** A typo — `mobile:account`
+ * — is accepted by any string column, appears in the console as granted, and
+ * grants nothing. The operator believes access was given and the caller gets
+ * 403s that look like a bug elsewhere. So the set is closed, and adding a scope
+ * is a change here rather than a string somebody types.
+ */
+export const KNOWN_SCOPES = ["mobile:accounts", "mobile:transactions"] as const;
+
+export type KnownScope = (typeof KNOWN_SCOPES)[number];
+
+export const scopeSchema = z.enum(KNOWN_SCOPES);

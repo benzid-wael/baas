@@ -14,6 +14,7 @@ import {
   parseInstant,
   toJsDate,
 } from "@baas/platform";
+import { TenantScope } from "@baas/persistence";
 import { startDatabase } from "@baas/persistence/testing";
 import type { DatabaseHarness } from "@baas/persistence/testing";
 import { buildRegistry } from "@baas/contracts";
@@ -142,31 +143,33 @@ beforeAll(async () => {
   // One live grant and one revoked one. The revoked row stays in the table as
   // history (D2) and must confer nothing — which is the half of the scope
   // query that a test asserting only the happy path would never reach.
-  await harness.db
-    .insertInto("api_client_scope")
-    .values([
-      {
-        id: uuidv7(),
-        api_client_id: clientId,
-        scope: "mobile:accounts",
-        granted_at: toJsDate(START),
-        granted_by: tenantId,
-        revoked_at: null,
-        revoked_by: null,
-        reason: "the BFF reads accounts",
-      },
-      {
-        id: uuidv7(),
-        api_client_id: clientId,
-        scope: "mobile:transactions",
-        granted_at: toJsDate(START),
-        granted_by: tenantId,
-        revoked_at: toJsDate(START),
-        revoked_by: tenantId,
-        reason: "withdrawn",
-      },
-    ])
-    .execute();
+  await new TenantScope(harness.db).runAsScopeAdmin(tenantId, (trx) =>
+    trx
+      .insertInto("api_client_scope")
+      .values([
+        {
+          id: uuidv7(),
+          api_client_id: clientId,
+          scope: "mobile:accounts",
+          granted_at: toJsDate(START),
+          granted_by: tenantId,
+          revoked_at: null,
+          revoked_by: null,
+          reason: "the BFF reads accounts",
+        },
+        {
+          id: uuidv7(),
+          api_client_id: clientId,
+          scope: "mobile:transactions",
+          granted_at: toJsDate(START),
+          granted_by: tenantId,
+          revoked_at: toJsDate(START),
+          revoked_by: tenantId,
+          reason: "withdrawn",
+        },
+      ])
+      .execute(),
+  );
 
   app = await buildApiApplication({
     // The harness URL carries a port we do not otherwise know; the config is

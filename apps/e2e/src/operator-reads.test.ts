@@ -33,6 +33,7 @@ import type { DatabaseHarness } from "@baas/persistence/testing";
 import { OperatorReads, ReadBalance, SystemReads } from "@baas/application";
 import { buildRegistry } from "@baas/contracts";
 import {
+  API_CLIENT_ADMIN,
   AuthorizationPolicyGuard,
   OPERATOR_READS,
   SYSTEM_READS,
@@ -166,6 +167,7 @@ beforeAll(async () => {
     controllers: [PlatformReadController],
     providers: [
       { provide: OPERATOR_READS, useValue: reads },
+      { provide: API_CLIENT_ADMIN, useValue: {} },
       { provide: SYSTEM_READS, useValue: new SystemReads(scope, clock) },
       {
         provide: APP_GUARD,

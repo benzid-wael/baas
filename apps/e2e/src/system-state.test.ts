@@ -26,6 +26,7 @@ import { startDatabase } from "@baas/persistence/testing";
 import type { DatabaseHarness } from "@baas/persistence/testing";
 import { SystemReads } from "@baas/application";
 import {
+  API_CLIENT_ADMIN,
   AuthorizationPolicyGuard,
   OperatorSessionGuard,
   PlatformReadController,
@@ -140,6 +141,7 @@ beforeAll(async () => {
   @Module({
     controllers: [PlatformReadController],
     providers: [
+      { provide: API_CLIENT_ADMIN, useValue: {} },
       { provide: SYSTEM_READS, useValue: system },
       // The customer reads are not exercised here; the controller needs the
       // token to construct, and a fake that is never called says so honestly.

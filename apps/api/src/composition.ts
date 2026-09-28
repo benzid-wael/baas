@@ -3,6 +3,7 @@ import type { AccountReadPort, Clock, IdGenerator } from "@baas/domain";
 import type { Config, Logger } from "@baas/platform";
 import {
   AccountRepository,
+  ApiClientAdminRepository,
   ApiClientRepository,
   AuditRepository,
   BalanceRepository,
@@ -23,6 +24,7 @@ import {
   ReadTransactions,
   SystemReads,
 } from "@baas/application";
+import { ApiClientAdmin } from "@baas/application";
 import type { ProviderAdapter, ProviderDeployment } from "@baas/application";
 import {
   KNOWN_PROVIDERS,
@@ -140,6 +142,11 @@ export function composeApi(options: ComposeApiOptions): ApiGraph {
           new ProviderRequestLogRepository(),
         ),
         system: new SystemReads(scope, clock),
+        apiClients: new ApiClientAdmin(
+          scope,
+          new ApiClientAdminRepository(clock, ids),
+          audit,
+        ),
       },
       webhooks: {
         inbox: new Inbox(db, clock, ids),

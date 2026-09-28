@@ -3,6 +3,7 @@ import {
   instantSchema,
   moneySchema,
   pageOf,
+  scopeSchema,
   slugSchema,
   uuidSchema,
 } from "./primitives.js";
@@ -217,3 +218,61 @@ export type ProviderCallSummaryWire = z.infer<typeof providerCallSummarySchema>;
 export type ProviderCallPageWire = z.infer<typeof providerCallPageSchema>;
 export type ProviderCallWire = z.infer<typeof providerCallSchema>;
 export type SystemStateWire = z.infer<typeof systemStateSchema>;
+
+/**
+ * An API client and its scopes, for the operator console (MP-3).
+ *
+ * The **history** is the surface, not the current state. Finding D2: the
+ * incumbent's `PATCH` replaces the scope array wholesale with no audit row, so
+ * "who granted this, and when" has no answer. Here every grant and every
+ * revocation is a row that stays, and the console shows them.
+ */
+export const scopeGrantSchema = z.object({
+  id: uuidSchema,
+  scope: z.string().min(1),
+  grantedAt: instantSchema,
+  grantedBy: uuidSchema.nullable(),
+  revokedAt: instantSchema.nullable(),
+  revokedBy: uuidSchema.nullable(),
+  reason: z.string().min(1),
+  /** Derived, so a client never has to work out what `revokedAt: null` means. */
+  live: z.boolean(),
+});
+
+export const apiClientSchema = z.object({
+  id: uuidSchema,
+  clientId: z.string().min(1),
+  name: z.string().min(1),
+  disabled: z.boolean(),
+  createdAt: instantSchema,
+  liveScopes: z.array(z.string().min(1)),
+});
+
+export const apiClientListSchema = z.object({
+  clients: z.array(apiClientSchema),
+});
+
+export const scopeHistorySchema = z.object({
+  /** Every grant this client has ever had, newest first. Nothing is removed. */
+  grants: z.array(scopeGrantSchema),
+});
+
+export type ScopeGrantWire = z.infer<typeof scopeGrantSchema>;
+export type ApiClientWire = z.infer<typeof apiClientSchema>;
+export type ApiClientListWire = z.infer<typeof apiClientListSchema>;
+export type ScopeHistoryWire = z.infer<typeof scopeHistorySchema>;
+
+/** The answer to a grant: the scope that was granted, echoed back. */
+export const grantedScopeSchema = z.object({ granted: scopeSchema });
+
+/**
+ * The answer to a revocation.
+ *
+ * `false` means the client did not hold that scope — not an error, because a
+ * revocation of something already gone is a no-op and saying so is more useful
+ * than a 404 that reads as "no such client".
+ */
+export const revokedScopeSchema = z.object({ revoked: z.boolean() });
+
+export type GrantedScopeWire = z.infer<typeof grantedScopeSchema>;
+export type RevokedScopeWire = z.infer<typeof revokedScopeSchema>;

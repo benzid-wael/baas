@@ -4,6 +4,8 @@ import { sql } from "kysely";
 import { uuidv7 } from "uuidv7";
 import { parseInstant, toJsDate } from "@baas/platform";
 import { startDatabase } from "./harness.js";
+import { TenantScope } from "./tenant-scope.js";
+import type { ScopedDatabase } from "./tenant-scope.js";
 import { assertSchemaMatches, compareSchema } from "./introspect.js";
 import { loadMigrations } from "./migrator.js";
 import type { DatabaseHarness } from "./harness.js";
@@ -114,6 +116,41 @@ describe("tenancy substrate", () => {
 });
 
 describe("scope changes are append-only and audited (D2)", () => {
+  /**
+   * These assertions are about the **unique index**, not about who may write.
+   * A trigger now refuses any write to `api_client_scope` outside
+   * `runAsScopeAdmin` (MP-3), so the setting is opted into here rather than
+   * the test being rewritten to go through the repository — which would be a
+   * different test.
+   */
+  const asAdmin = async (
+    work: (db: ScopedDatabase) => Promise<unknown>,
+  ): Promise<void> => {
+    // Through the real scope rather than by setting the flag by hand. A
+    // session-scoped `set_config` would survive onto the next request on a
+    // pooled connection, which is New-14 — and the tenant-scope gate refuses
+    // it, correctly, even in a test.
+    await new TenantScope(harness.db).runAsScopeAdmin(tenantId, work);
+  };
+
+  it("refuses a write from outside the administration scope", async () => {
+    await expect(
+      harness.db
+        .insertInto("api_client_scope")
+        .values({
+          id: uuidv7(),
+          api_client_id: uuidv7(),
+          scope: "mobile:accounts",
+          granted_at: AT,
+          granted_by: tenantId,
+          revoked_at: null,
+          revoked_by: null,
+          reason: "should not be permitted",
+        })
+        .execute(),
+    ).rejects.toThrow(/runAsScopeAdmin/);
+  });
+
   it("permits one live grant per scope and allows re-granting after revocation", async () => {
     const client = uuidv7();
     await harness.db
@@ -139,30 +176,41 @@ describe("scope changes are append-only and audited (D2)", () => {
       reason: "initial",
     };
 
-    await harness.db
-      .insertInto("api_client_scope")
-      .values({ id: uuidv7(), ...grant })
-      .execute();
-
-    // A second live grant of the same scope is a duplicate, not an update.
-    await expect(
-      harness.db
+    // One scope per `asAdmin`, not one block: the duplicate below is *expected*
+    // to fail, and a failed statement aborts the transaction it is in. Sharing
+    // one transaction across all four steps would poison the rest.
+    await asAdmin((db) =>
+      db
         .insertInto("api_client_scope")
         .values({ id: uuidv7(), ...grant })
         .execute(),
+    );
+
+    // A second live grant of the same scope is a duplicate, not an update.
+    await expect(
+      asAdmin((db) =>
+        db
+          .insertInto("api_client_scope")
+          .values({ id: uuidv7(), ...grant })
+          .execute(),
+      ),
     ).rejects.toThrow(/duplicate key/i);
 
     // Revoking leaves the history and frees the scope to be granted again.
-    await harness.db
-      .updateTable("api_client_scope")
-      .set({ revoked_at: AT, revoked_by: tenantId })
-      .where("api_client_id", "=", client)
-      .execute();
+    await asAdmin((db) =>
+      db
+        .updateTable("api_client_scope")
+        .set({ revoked_at: AT, revoked_by: tenantId })
+        .where("api_client_id", "=", client)
+        .execute(),
+    );
 
-    await harness.db
-      .insertInto("api_client_scope")
-      .values({ id: uuidv7(), ...grant, reason: "re-granted" })
-      .execute();
+    await asAdmin((db) =>
+      db
+        .insertInto("api_client_scope")
+        .values({ id: uuidv7(), ...grant, reason: "re-granted" })
+        .execute(),
+    );
 
     const history = await harness.db
       .selectFrom("api_client_scope")

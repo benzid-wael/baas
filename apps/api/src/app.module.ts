@@ -23,6 +23,7 @@ import {
   READ_TRANSACTIONS,
 } from "./mobile.controller.js";
 import {
+  API_CLIENT_ADMIN,
   OPERATOR_READS,
   PlatformReadController,
   SYSTEM_READS,
@@ -34,6 +35,7 @@ import {
 import type { OperatorSessionDeps } from "./operator-session.controller.js";
 import { OperatorSessionGuard } from "./operator-guard.js";
 import type {
+  ApiClientAdmin,
   OperatorReads,
   ReadAccounts,
   ReadTransactions,
@@ -60,6 +62,7 @@ export interface ReadSurfaces {
   readonly transactions: ReadTransactions;
   readonly operator: OperatorReads;
   readonly system: SystemReads;
+  readonly apiClients: ApiClientAdmin;
 }
 
 export interface ApiDependencies {
@@ -132,6 +135,7 @@ export class AppModule {
               { provide: READ_TRANSACTIONS, useValue: reads.transactions },
               { provide: OPERATOR_READS, useValue: reads.operator },
               { provide: SYSTEM_READS, useValue: reads.system },
+              { provide: API_CLIENT_ADMIN, useValue: reads.apiClients },
             ]),
         ...(sessions === undefined
           ? []
