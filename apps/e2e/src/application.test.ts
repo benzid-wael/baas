@@ -183,6 +183,11 @@ beforeAll(async () => {
     ids: new SequenceIdGenerator(Array.from({ length: 200 }, () => uuidv7())),
     tenantId,
   });
+  // Listening, not merely built (New-26). `buildApiApplication` initialises but
+  // does not listen; supertest handed a non-listening server starts one and
+  // closes it again per request, and a request racing that close is a
+  // `socket hang up`.
+  await app.listen(0);
 }, 180_000);
 
 afterAll(async () => {

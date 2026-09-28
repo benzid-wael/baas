@@ -151,7 +151,15 @@ beforeAll(async () => {
     rawBody: true,
     abortOnError: false,
   });
-  await app.init();
+  // Listening, not merely initialised (New-26).
+  //
+  // Supertest starts a server itself when handed one that is not listening,
+  // and **closes it again once the request settles** -- a listen and a close
+  // per request. A request dispatched while that close is in flight fails with
+  // `socket hang up`, which is what made the suite fail about one run in four.
+  // Once the server is already listening, supertest reuses the address and
+  // never closes anything. `app.close()` in `afterAll` still shuts it down.
+  await app.listen(0);
 }, 180_000);
 
 afterAll(async () => {
