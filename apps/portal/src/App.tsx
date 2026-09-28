@@ -1,30 +1,101 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ApiClient } from "./api.js";
+import { SystemPanel } from "./system-panel.js";
+import { beginSignIn, completeSignIn } from "./oidc.js";
+import type { FlowStore } from "./oidc.js";
+import type { PortalConfig } from "./config.js";
 
 /**
- * The shell (MP-6).
+ * The shell (MP-6, MP-7a).
  *
- * Deliberately almost nothing: a signed-out state, a signed-in state, and the
- * seam the screens plug into. MP-7 to MP-10 fill it. What matters here is that
- * the shape is right — a session that lives in memory, an error surface that
- * shows our words, and a test that runs without a browser being installed.
+ * Three states and no router: signed out, signing in, signed in. A router
+ * arrives with the second screen; adding one now would be a dependency chosen
+ * before there was a question for it to answer.
+ *
+ * **No deep links, deliberately.** A URL that identifies a customer is a URL
+ * that gets pasted into a chat and lands in browser history on a shared
+ * machine. When browsing arrives (MP-7b) that is a decision to take on
+ * purpose, not one inherited from a routing library's defaults.
  */
 export interface AppProps {
   readonly api: ApiClient;
+  readonly config: PortalConfig;
+  readonly store: FlowStore;
+  /** The current location. Injected so the callback path is testable. */
+  readonly location: { readonly href: string; readonly search: string };
+  /** Called with where to send the browser. The one side effect. */
+  readonly navigate: (url: string) => void;
+  /** Called once a callback has been consumed, to take it out of the URL. */
+  readonly clearQuery: () => void;
+  /**
+   * Used for the identity provider only — the API has its own, inside
+   * `ApiClient`. Injected for the same reason: a flow that can only be
+   * exercised against a real provider is a flow nobody tests.
+   */
+  readonly fetchImpl?: typeof fetch;
 }
 
-export function App({ api }: AppProps): React.JSX.Element {
-  const [signedIn, setSignedIn] = useState(api.signedIn);
+type Phase =
+  | { readonly kind: "signed-out" }
+  | { readonly kind: "working" }
+  | { readonly kind: "signed-in" };
+
+export function App(props: AppProps): React.JSX.Element {
+  const { api, config, store, location, navigate, clearQuery } = props;
+  const fetchImpl = props.fetchImpl;
+  const [phase, setPhase] = useState<Phase>(
+    api.signedIn ? { kind: "signed-in" } : { kind: "signed-out" },
+  );
   const [error, setError] = useState<string | undefined>(undefined);
+
+  const fail = useCallback((cause: unknown): void => {
+    setError(cause instanceof Error ? cause.message : "Something went wrong.");
+    setPhase({ kind: "signed-out" });
+  }, []);
+
+  // The provider redirected back. Redeem the code, exchange the identity for a
+  // `baas` session, and take the code out of the URL — a code left in the
+  // address bar is a code in history and in the next screenshot.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.has("code") && !params.has("error")) {
+      return;
+    }
+    setPhase({ kind: "working" });
+    void completeSignIn({
+      config,
+      redirectUri: redirectUriOf(location.href),
+      store,
+      params,
+      ...(fetchImpl === undefined ? {} : { fetchImpl }),
+    })
+      .then((idToken) => api.signIn(idToken))
+      .then(() => {
+        setPhase({ kind: "signed-in" });
+        setError(undefined);
+      })
+      .catch(fail)
+      .finally(clearQuery);
+  }, [api, config, store, location, clearQuery, fail, fetchImpl]);
+
+  const signIn = (): void => {
+    setPhase({ kind: "working" });
+    void beginSignIn({
+      config,
+      redirectUri: redirectUriOf(location.href),
+      store,
+      ...(fetchImpl === undefined ? {} : { fetchImpl }),
+    })
+      .then(navigate)
+      .catch(fail);
+  };
 
   const signOut = (): void => {
     void api
       .signOut()
-      .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : "Sign-out failed.");
-      })
+      .catch(fail)
       .finally(() => {
-        setSignedIn(api.signedIn);
+        setPhase({ kind: "signed-out" });
       });
   };
 
@@ -32,36 +103,44 @@ export function App({ api }: AppProps): React.JSX.Element {
     <main>
       <h1>baas operator console</h1>
       {error !== undefined && <p role="alert">{error}</p>}
-      {signedIn ? (
+
+      {phase.kind === "working" && <p>Signing in…</p>}
+
+      {phase.kind === "signed-in" && (
         <>
-          <p>Signed in.</p>
           <button type="button" onClick={signOut}>
             Sign out
           </button>
+          <SystemPanel api={api} />
         </>
-      ) : (
-        <SignInPrompt />
+      )}
+
+      {phase.kind === "signed-out" && (
+        <section aria-labelledby="sign-in">
+          <h2 id="sign-in">Sign in</h2>
+          <p>
+            Sign in with your organisation account. This console never asks for
+            a password.
+          </p>
+          <button type="button" onClick={signIn}>
+            Sign in
+          </button>
+        </section>
       )}
     </main>
   );
 }
 
 /**
- * The portal performs the authorization-code flow with PKCE against the
- * identity provider itself and posts the resulting token to `baas`. It never
- * holds a client secret, because a browser cannot hold one.
+ * The redirect URI is this page without its query string.
  *
- * The flow itself arrives with MP-7; this states the shape so that nobody
- * builds a password form here in the meantime.
+ * Derived rather than configured: it has to match byte for byte between the
+ * authorization request and the token exchange, and two settings that must
+ * agree are one setting that will not.
  */
-function SignInPrompt(): React.JSX.Element {
-  return (
-    <section aria-labelledby="sign-in">
-      <h2 id="sign-in">Sign in</h2>
-      <p>
-        Sign in with your organisation account. This console never asks for a
-        password.
-      </p>
-    </section>
-  );
+function redirectUriOf(href: string): string {
+  const url = new URL(href);
+  url.search = "";
+  url.hash = "";
+  return url.toString();
 }

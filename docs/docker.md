@@ -184,7 +184,37 @@ delivery, and does so only where a real partner exists.
 
 `pnpm portal:dev` serves the operator console on 5173 against whatever
 `VITE_API_BASE_URL` points at — your own `pnpm start:api`, or the compose
-`api` on the daemon host. It is a **static bundle**: no Node process, no
+`api` on the daemon host. Copy `apps/portal/.env.example` to
+`apps/portal/.env` first.
+
+### Signing in end to end
+
+```sh
+docker compose --profile infra up -d     # postgres, redis, blnk, mock-oauth2
+docker compose run --rm seed             # migrations, tenant, API client
+pnpm start:api                           # or --profile full
+pnpm portal:dev                          # http://localhost:5173
+```
+
+Click **Sign in**, and mock-oauth2-server shows a login form that accepts
+anything. **Type the subject you put in `OPERATOR_BOOTSTRAP_ADMIN_SUBJECTS`** —
+`first-operator` if you kept the example — because registration deliberately
+grants no role, and a subject that is not on that list signs in successfully
+and can reach nothing (MP-1, finding C3).
+
+Three settings have to agree, and two of them are easy to get wrong:
+
+| Setting                                                 | Must be                                                                                                                       |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_OIDC_ISSUER` (portal) and `OIDC_ISSUER` (service) | **byte-identical**, and the address the _browser_ uses                                                                        |
+| `OIDC_JWKS_URI` (service)                               | the address the _service_ uses — `http://oidc:8080/baas/jwks` in compose, `http://localhost:8090/baas/jwks` from your machine |
+| `CORS_ORIGINS` (service)                                | the portal's origin, `http://localhost:5173` by default                                                                       |
+
+The issuer is a **string compared** against the token's `iss`; the JWKS URI is
+a **URL fetched**. In compose they genuinely differ, which is why they are two
+settings rather than one. Getting the issuer wrong produces a 401 that says
+nothing about why — by design, because telling a caller why a token was refused
+tells them how to make a better one. It is a **static bundle**: no Node process, no
 server-side rendering, and no secret of its own. Its only credential is the
 operator session it exchanges an identity-provider token for, held in memory
 for the life of the tab and deliberately not in `localStorage` — a session that
