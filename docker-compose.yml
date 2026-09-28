@@ -57,6 +57,9 @@ x-app-env: &app-env
   OPERATOR_BOOTSTRAP_ADMIN_SUBJECTS: ${OPERATOR_BOOTSTRAP_ADMIN_SUBJECTS:-}
   PROVIDER_CREDENTIAL_ENCRYPTION_KEY: ${PROVIDER_CREDENTIAL_ENCRYPTION_KEY:-changeme-placeholder-key-32-chars!}
   BOOTSTRAP_TENANT_SLUG: ${BOOTSTRAP_TENANT_SLUG:-superchat}
+  # The portal is a different origin in every deployment, and a wildcard is not
+  # an option for a console that carries a session reading any customer.
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://${BAAS_HOST:-localhost}:${PORTAL_PORT:-5173}}
   PROVIDERS: ${PROVIDERS:-}
 
 services:
@@ -178,6 +181,31 @@ services:
       PORT: "3000"
     ports:
       - "${API_PORT:-3000}:3000"
+
+  # The operator console. A static bundle, so it is its own image with no Node
+  # in it and no access to the service's environment (New-23).
+  #
+  # The `VITE_*` values are **build** arguments, not environment: they are
+  # compiled into the bundle, which is why this image is built per environment
+  # rather than promoted between them. They are addresses a *browser* uses, so
+  # they carry `BAAS_HOST` rather than a compose service name.
+  portal:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: Dockerfile.portal
+      args:
+        VITE_API_BASE_URL: http://${BAAS_HOST:-localhost}:${API_PORT:-3000}
+        VITE_OIDC_ISSUER: http://${BAAS_HOST:-localhost}:${OIDC_PORT:-8090}/baas
+        VITE_OIDC_CLIENT_ID: ${OIDC_AUDIENCE:-baas-portal}
+    environment:
+      # Substituted into the Content-Security-Policy at start-up. The browser
+      # must be allowed to reach the API and the identity provider, and nothing
+      # else.
+      PORTAL_API_ORIGIN: http://${BAAS_HOST:-localhost}:${API_PORT:-3000}
+      PORTAL_OIDC_ORIGIN: http://${BAAS_HOST:-localhost}:${OIDC_PORT:-8090}
+    ports:
+      - "${PORTAL_PORT:-5173}:8080"
 
   worker:
     profiles: [full]

@@ -1,0 +1,63 @@
+# The operator console (New-23).
+#
+# A **separate image from the service**, and not a variant of it. Two reasons,
+# both of which the API's Dockerfile would get wrong:
+#
+#   1. The portal is a static bundle. It needs no Node at runtime, so shipping
+#      `node:24` would be a hundred megabytes of interpreter to serve four
+#      files — and an interpreter is an attack surface.
+#   2. It must never be handed the service's environment. It holds no secret,
+#      because a browser cannot hold one, and the surest way to keep that true
+#      is for the image to have no way to receive one.
+#
+# **The bundle is environment-specific.** `VITE_*` values are compiled in, so
+# this image is built per environment rather than promoted between them. That
+# is a real difference from the API image and it is stated rather than papered
+# over with a runtime lookup that does not exist.
+
+FROM node:24-bookworm-slim AS build
+WORKDIR /srv
+
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY packages/domain/package.json    packages/domain/
+COPY packages/contracts/package.json packages/contracts/
+COPY apps/portal/package.json        apps/portal/
+RUN pnpm install --frozen-lockfile --filter @baas/portal...
+
+COPY tsconfig.base.json ./
+COPY packages/domain    packages/domain
+COPY packages/contracts packages/contracts
+COPY apps/portal        apps/portal
+
+# Compiled into the bundle. Anyone who can read the served JavaScript can read
+# these, which is fine: none of them is a secret, and the build fails without
+# them rather than producing a bundle that cannot start.
+ARG VITE_API_BASE_URL
+ARG VITE_OIDC_ISSUER
+ARG VITE_OIDC_CLIENT_ID
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
+    VITE_OIDC_ISSUER=$VITE_OIDC_ISSUER \
+    VITE_OIDC_CLIENT_ID=$VITE_OIDC_CLIENT_ID
+
+RUN test -n "$VITE_API_BASE_URL" \
+ && test -n "$VITE_OIDC_ISSUER" \
+ && test -n "$VITE_OIDC_CLIENT_ID" \
+ || (echo "VITE_API_BASE_URL, VITE_OIDC_ISSUER and VITE_OIDC_CLIENT_ID are compiled into the bundle and must be supplied as build arguments" && exit 1)
+
+# The portal's own tsconfig references `contracts`, so this builds both.
+RUN pnpm --filter @baas/portal run build
+
+# nginx-unprivileged rather than the official image: the master process runs as
+# a normal user and listens on 8080, which means the container needs no root
+# and no capability to bind a low port.
+FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
+
+# Rendered by the image's own entrypoint at start-up, so the API origin — which
+# is not known at build time in every environment — reaches the CSP without a
+# bind mount. A mount would resolve on the *daemon's* filesystem, which may not
+# be yours.
+COPY apps/portal/nginx.conf.template /etc/nginx/templates/default.conf.template
+
+EXPOSE 8080

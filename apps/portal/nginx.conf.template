@@ -1,0 +1,44 @@
+# Serving the operator console (New-23).
+#
+# `${PORTAL_API_ORIGIN}` is substituted by the nginx image's entrypoint at
+# start-up. It has to be: the API's origin differs per environment and the
+# bundle is already environment-specific enough.
+
+server {
+  listen 8080;
+  server_name _;
+  root /usr/share/nginx/html;
+
+  # The console reads any customer in the tenant. None of it should ever be
+  # held by an intermediary, and none of it should appear in a search index.
+  add_header Cache-Control "no-store" always;
+  add_header X-Robots-Tag "noindex, nofollow" always;
+
+  # A browser cannot hold a secret, so the portal's defence is what it is
+  # *allowed to talk to*. `connect-src` is the important line: it names the API
+  # and the identity provider and nothing else, so a compromised dependency
+  # cannot exfiltrate to a third party.
+  #
+  # `script-src 'self'` with no `unsafe-inline`: Vite's production build emits
+  # no inline script. If that ever changes, this refuses to run rather than
+  # being relaxed to accommodate it.
+  add_header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ${PORTAL_API_ORIGIN} ${PORTAL_OIDC_ORIGIN}; form-action 'none'; frame-ancestors 'none'; base-uri 'none'" always;
+
+  add_header Referrer-Policy "no-referrer" always;
+  add_header X-Content-Type-Options "nosniff" always;
+
+  # Liveness for compose and for an orchestrator. Deliberately not the index:
+  # a probe that fetches the whole bundle is a probe that costs something.
+  location = /healthz {
+    access_log off;
+    return 200 "ok\n";
+  }
+
+  # No history fallback. The console has no router and puts nothing in the
+  # address bar (MP-7a), so an unknown path is a mistake and should say so
+  # rather than silently rendering the app. A router would need `try_files
+  # $uri /index.html` here, and should add it then.
+  location / {
+    try_files $uri $uri/ =404;
+  }
+}
