@@ -4,9 +4,13 @@ What a person can exercise today, what they cannot, and the exact commands —
 with the responses to expect, so that "it works" is checkable rather than
 asserted.
 
-Everything in **Verified** below was run on 2026-09-28 against a throwaway
-PostgreSQL and the real `main.js`. The outputs are transcribed, not predicted.
+Everything in **Verified** below was run against a throwaway PostgreSQL and the
+real `main.js`, and the outputs are transcribed rather than predicted.
 Everything in **Not yet reachable** is honestly out of reach and says why.
+
+Two things this document will not do: claim something works because a test
+covers it, or leave a gap unstated. Where a seam has only ever been crossed by
+a test, it says so.
 
 ---
 
@@ -190,14 +194,43 @@ why a token was refused tells them how to make a better one — which makes the
 first sign-in in a new environment the one most likely to fail opaquely. Check
 these three before debugging anything else.
 
+### What the console can do
+
+Three screens, and **System is where you land** — it reads the API the moment
+the session exists, so a session that cannot reach the service says so on
+arrival. The other two call nothing until you ask them to.
+
+| Screen                | What it answers                                                                                                                                                                                                |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **System**            | each provider available or **why not**, in a sentence naming who should look at it; effects awaiting an outcome; inbox backlog; callbacks that failed their signature; schema drift with the offending columns |
+| **Customers**         | find one by exact identifier, see their accounts with honest balances, page their transactions                                                                                                                 |
+| **Provider requests** | every call to a provider, filterable by **account reference**, correlation id or provider; open one for the scrubbed bodies                                                                                    |
+
+Things worth trying, because each is a decision you may disagree with:
+
+- Search the demo customer (`0192f3a4-5b6c-7d8e-8f90-000000000001`) and look at
+  **DEMO-ACCT-SILENT** — it shows "Not available" and **no figure at all**.
+  Finding F4: an absent balance rendered as `0.00` reads as "you have no
+  money", which is a worse lie than an error.
+- **DEMO-ACCT-OLD** shows its age in words — "as of an hour ago" — rather than
+  presenting an old figure as current.
+- The customer screen states that **every lookup is recorded against your
+  name**, including ones that find nothing. An audit trail the audited do not
+  know about is a trap rather than a control.
+- There is **no way to reach a customer by URL**. The back button does not work
+  inside the console; that is the trade, and it means a link pasted into a chat
+  carries nothing.
+
 ### What was verified, and what was not
 
-Verified on 2026-09-28: the dev server serves, the bundle builds, and the API
-accepts and refuses the portal's origin correctly.
+Verified on 2026-09-28, by running it: the dev server serves, the bundle
+builds, the API accepts the portal's origin and refuses others, and the three
+`/platform` endpoints the screens call return what the screens expect —
+checked against the published schemas.
 
 **Not verified: the sign-in round trip against a real provider.** It needs
 `mock-oauth2-server`, which needs a Docker daemon. Both halves are covered by
-tests — `operator-signin.test.ts` for the service, 39 portal tests for the
+tests — `operator-signin.test.ts` for the service, 85 portal tests for the
 browser — but the seam between them, with a real provider in the middle, has
 not been exercised by a person. **It is the first thing to try, and the first
 thing to suspect.**
@@ -206,14 +239,20 @@ thing to suspect.**
 
 ## 5. Not yet reachable
 
-|                                            | Why                                                                                           | Task   |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------- | ------ |
-| Mobile reads (`/mobile/*`)                 | Need an ES256 assertion the BFF would mint; nothing here mints one                            | New-25 |
-| Real balances, live provider calls         | No provider credentials configured; `/system/capabilities` reports `not_configured`, honestly | —      |
-| Verified partner callbacks                 | Need `PROVIDER_<NAME>_WEBHOOK_PUBLIC_KEY` or `_CALLBACK_HMAC_SECRET`                          | —      |
-| Customer, accounts and transaction screens | Not built, and the seed creates no customers                                                  | MP-7b  |
-| The portal in Docker                       | No image and no compose service                                                               | New-23 |
+|                                                    | Why                                                                                                                       | Task       |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| Real balances, live provider calls                 | No provider credentials configured. `/system/capabilities` reports `not_configured` rather than hiding it                 | —          |
+| Verified partner callbacks                         | Need `PROVIDER_<NAME>_WEBHOOK_PUBLIC_KEY` or `_CALLBACK_HMAC_SECRET`. Unsigned deliveries are still recorded, as rejected | —          |
+| The portal **in Docker**                           | The image and compose service exist and **have never been built** — the daemon was never used                             | New-23     |
+| Editing an API client's scopes from the console    | The API is done (MP-3); the screen waits on whether a grant needs two people                                              | MP-10, O16 |
+| Anything that **writes** — payments, beneficiaries | Not built. Everything above is a read                                                                                     | M2, M3     |
 
-The remaining gaps are all about _writing_ and _providers_. The read surface —
-M1-5, M1-8 and M1-9 — has now been exercised by a person rather than only by a
-test, which was the shape of finding N1.
+The read surface is now exercisable by a person end to end: seed, sign in,
+find a customer, see honest balances, trace a provider call. That was the shape
+of finding N1 — a path that works in a test and has never been run by anybody —
+and it no longer applies to reads.
+
+**What is still only exercised by tests** is the writing spine: the outbox
+dispatches, the reconciler settles, and `spine.test.ts` proves it end to end
+with a simulated partner — but no person has watched money move, because
+nothing here moves money yet.

@@ -62,6 +62,11 @@ built one package at a time, and each arrives with its gate already passing.
 and the exact responses to expect — plus an honest list of what cannot be
 exercised yet and why.
 
+Briefly: `pnpm seed:demo`, `pnpm start:api`, `pnpm portal:dev`. The console has
+three screens — system health with a reason rather than a red dot, customer
+lookup with balances that never render an absent figure as zero, and the
+provider request log filterable by account reference.
+
 ## Docker
 
 The daemon is **not assumed to be local** — `DOCKER_HOST` may point at a
