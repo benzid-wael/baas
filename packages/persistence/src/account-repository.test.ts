@@ -13,7 +13,7 @@ import type { DatabaseHarness } from "./harness.js";
 import { TenantScope } from "./tenant-scope.js";
 import { CustomerRepository } from "./customer-repository.js";
 import { AccountRepository } from "./account-repository.js";
-import { DECLARED_SCHEMA } from "./introspect.js";
+import { DECLARED_SCHEMA } from "./schema.js";
 
 let harness: DatabaseHarness;
 let scope: TenantScope;

@@ -23,6 +23,7 @@
     "check:tenant-scope": "node scripts/check-tenant-scope.mjs",
     "ci": "./scripts/ci/verify.sh",
     "check:config": "tsc --build && node packages/platform/dist/config/check.js",
+    "db:types": "tsc --build && node packages/persistence/dist/codegen-cli.js",
     "sim": "tsc --build && node apps/provider-sim/dist/main.js",
     "start:api": "tsc --build && node apps/api/dist/main.js",
     "start:worker": "tsc --build && node apps/worker/dist/main.js",

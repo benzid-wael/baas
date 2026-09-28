@@ -87,8 +87,20 @@ const MAY_IMPORT = {
 /** The domain declares no runtime dependencies at all. */
 const DOMAIN_DEV_ALLOW_LIST = new Set(["typescript", "vitest"]);
 
+/**
+ * What counts as an import.
+ *
+ * The gap between `import` and `from` may not contain a quote or a semicolon.
+ * It used to be `[\s\S]*?`, which matched across arbitrary text — so a *string
+ * literal* containing the word "from" followed later by a quote was reported as
+ * an undeclared import of whatever lay between. `codegen.ts`, which emits
+ * TypeScript as strings, produced exactly that and failed the gate on prose.
+ *
+ * Nothing legitimate is lost: a real import, however many lines it spans, has
+ * no quote between `import` and `from`.
+ */
 const IMPORT_PATTERN =
-  /(?:^|\s)(?:import|export)[\s\S]*?from\s*["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)|require\s*\(\s*["']([^"']+)["']\s*\)/g;
+  /(?:^|\s)(?:import|export)[^"';]*?from\s*["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)|require\s*\(\s*["']([^"']+)["']\s*\)/g;
 
 /**
  * Every rule, over an in-memory description of the workspace (New-13).

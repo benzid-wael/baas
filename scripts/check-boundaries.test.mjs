@@ -381,3 +381,33 @@ describe("every rule reports, rather than stopping at the first", () => {
     expect(failures).toHaveLength(3);
   });
 });
+
+describe("prose is not an import", () => {
+  const seen = (source) =>
+    evaluateWorkspace([pkg("packages/x", {}, [file("src/index.ts", source)])]);
+
+  it("ignores the word `from` inside a string literal", () => {
+    // A real false failure. `codegen.ts` emits TypeScript as strings, and one
+    // of its lines ended "...come from" — the matcher then treated everything
+    // up to the next quote as a package name and refused the build. The gap
+    // between `import` and `from` may not contain a quote.
+    expect(
+      seen(
+        `export const lines = [\n  "// comments come from",\n  "// the migrations",\n];`,
+      ),
+    ).toEqual([]);
+  });
+
+  it("still catches a multi-line import", () => {
+    // The tightening must not cost this: real imports span lines constantly
+    // and never contain a quote before `from`.
+    expect(seen(`import {\n  a,\n  b,\n} from "zod";`)).toHaveLength(1);
+  });
+
+  it("does not run one statement into the next", () => {
+    const failures = seen(`import a from "alpha"; import b from "beta";`);
+    expect(failures).toHaveLength(2);
+    expect(failures[0]).toMatch(/"alpha"/);
+    expect(failures[1]).toMatch(/"beta"/);
+  });
+});

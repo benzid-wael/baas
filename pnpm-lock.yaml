@@ -348,6 +348,9 @@ importers:
       embedded-postgres:
         specifier: ^17.5.0-beta.15
         version: 17.5.0-beta.15
+      prettier:
+        specifier: ^3.4.2
+        version: 3.9.9
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
