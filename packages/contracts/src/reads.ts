@@ -4,6 +4,7 @@ import {
   moneySchema,
   pageOf,
   slugSchema,
+  uuidSchema,
 } from "./primitives.js";
 
 /**
@@ -122,6 +123,30 @@ export const statementSchema = z.object({
 export const statementListSchema = z.object({
   statements: z.array(statementSchema),
 });
+
+/**
+ * What the operator surface says about a customer (MP-7b).
+ *
+ * Registered with a schema, unlike the first version of these paths, which
+ * published a description and nothing else. The portal then declared its own
+ * shape, got a field name wrong, and type-checked perfectly — the mismatch
+ * turned up in a `curl`. A published path with no response schema is a path
+ * whose consumers each invent a type (correction C16).
+ */
+export const customerSummarySchema = z.object({
+  customerId: uuidSchema,
+  externalUserUuid: uuidSchema,
+  providers: z.array(
+    z.object({
+      providerId: slugSchema,
+      status: z.string().min(1),
+      statusReason: z.string().nullable(),
+      observedAt: instantSchema,
+    }),
+  ),
+});
+
+export type CustomerSummaryWire = z.infer<typeof customerSummarySchema>;
 
 export type AccountWire = z.infer<typeof accountSchema>;
 export type BalanceWire = z.infer<typeof balanceSchema>;

@@ -184,6 +184,31 @@ describe("signed in", () => {
     expect(screen.getByText(/matches the declaration/i)).toBeDefined();
   });
 
+  it("lands on System, because it reads the API and the search screen does not", async () => {
+    // A session that cannot reach the service must say so on arrival. The
+    // search screen calls nothing until someone types, and would look
+    // perfectly healthy against a dead API.
+    await signedIn();
+    expect(
+      screen
+        .getByRole("button", { name: /^system$/i })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+  });
+
+  it("moves to the customer screen and back", async () => {
+    await signedIn();
+    await userEvent.click(screen.getByRole("button", { name: /customers/i }));
+    expect(
+      await screen.findByRole("heading", { name: /find a customer/i }),
+    ).toBeDefined();
+
+    await userEvent.click(screen.getByRole("button", { name: /^system$/i }));
+    expect(
+      await screen.findByRole("heading", { name: /^system$/i }),
+    ).toBeDefined();
+  });
+
   it("signs out and returns to the prompt", async () => {
     await signedIn();
     await userEvent.click(screen.getByRole("button", { name: /sign out/i }));

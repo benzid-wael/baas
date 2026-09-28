@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TestClock, parseInstant } from "@baas/platform";
+import { SystemClock } from "@baas/platform";
 import {
   SeedRefusedError,
   generateDevKeyPair,
@@ -14,13 +14,21 @@ import {
  * so that is what checks it here, rather than a second implementation that
  * could agree with the tool and disagree with production.
  */
-const START = parseInstant("2026-09-28T09:00:00.000Z");
+/**
+ * The **real** clock, deliberately.
+ *
+ * An earlier version froze it at a fixed instant and minted a 60-second
+ * assertion from that — then verified it with `jsonwebtoken`, which reads the
+ * real clock. The test passed for the one minute a day when the two agreed and
+ * failed every other time. A frozen clock is right when both sides read it;
+ * here only one does.
+ */
 const ISSUER = "https://bff.local";
 const AUDIENCE = "baas";
 const SUBJECT = "0192f3a4-5b6c-7d8e-8f90-000000000001";
 
 const pair = generateDevKeyPair();
-const clock = new TestClock(START);
+const clock = new SystemClock();
 
 function mint(overrides: Partial<Parameters<typeof mintAssertion>[1]> = {}) {
   return mintAssertion(clock, {

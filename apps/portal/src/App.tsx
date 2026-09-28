@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ApiClient } from "./api.js";
 import { SystemPanel } from "./system-panel.js";
+import { CustomerScreen } from "./customer.js";
 import { beginSignIn, completeSignIn } from "./oidc.js";
 import type { FlowStore } from "./oidc.js";
 import type { PortalConfig } from "./config.js";
@@ -14,8 +15,9 @@ import type { PortalConfig } from "./config.js";
  *
  * **No deep links, deliberately.** A URL that identifies a customer is a URL
  * that gets pasted into a chat and lands in browser history on a shared
- * machine. When browsing arrives (MP-7b) that is a decision to take on
- * purpose, not one inherited from a routing library's defaults.
+ * machine. MP-7b kept that decision: navigation between screens is in memory,
+ * so nothing a customer can be identified by ever reaches the address bar.
+ * The cost is the back button, and it is a cost worth paying here.
  */
 export interface AppProps {
   readonly api: ApiClient;
@@ -47,6 +49,17 @@ export function App(props: AppProps): React.JSX.Element {
     api.signedIn ? { kind: "signed-in" } : { kind: "signed-out" },
   );
   const [error, setError] = useState<string | undefined>(undefined);
+  /**
+   * Which screen, held in memory rather than in the URL. See the note above:
+   * a URL that identifies a customer is a URL that gets pasted into a chat.
+   *
+   * **System is the landing**, not customer search. It reads the API the
+   * moment the session exists, so a session that cannot reach the service
+   * says so immediately; the search screen calls nothing until someone types,
+   * and would look perfectly healthy against a dead API. It is also the screen
+   * an incident starts on.
+   */
+  const [screen, setScreen] = useState<"customers" | "system">("system");
 
   const fail = useCallback((cause: unknown): void => {
     setError(cause instanceof Error ? cause.message : "Something went wrong.");
@@ -108,10 +121,34 @@ export function App(props: AppProps): React.JSX.Element {
 
       {phase.kind === "signed-in" && (
         <>
-          <button type="button" onClick={signOut}>
-            Sign out
-          </button>
-          <SystemPanel api={api} />
+          <nav aria-label="Console">
+            <button
+              type="button"
+              onClick={() => {
+                setScreen("customers");
+              }}
+              aria-current={screen === "customers" ? "page" : undefined}
+            >
+              Customers
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setScreen("system");
+              }}
+              aria-current={screen === "system" ? "page" : undefined}
+            >
+              System
+            </button>
+            <button type="button" onClick={signOut}>
+              Sign out
+            </button>
+          </nav>
+          {screen === "customers" ? (
+            <CustomerScreen api={api} />
+          ) : (
+            <SystemPanel api={api} />
+          )}
         </>
       )}
 

@@ -9,7 +9,11 @@ import {
   Req,
 } from "@nestjs/common";
 import { fromMoney } from "@baas/contracts";
-import type { AccountWire, TransactionWire } from "@baas/contracts";
+import type {
+  AccountWire,
+  CustomerSummaryWire,
+  TransactionWire,
+} from "@baas/contracts";
 import type {
   OperatorAccountView,
   OperatorReads,
@@ -80,7 +84,10 @@ export class PlatformReadController {
     @Req() request: RequestWithPrincipal,
     @Query("externalUserUuid") externalUserUuid?: string,
     @Query("accountReference") accountReference?: string,
-  ): Promise<unknown> {
+    // The published type, not `unknown`. The first version returned `unknown`
+    // and the portal invented its own shape to match it — and got a field name
+    // wrong that type-checked on both sides (correction C16).
+  ): Promise<CustomerSummaryWire> {
     const { tenantId, actor } = operator(request);
 
     if ((externalUserUuid === undefined) === (accountReference === undefined)) {

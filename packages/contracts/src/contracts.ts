@@ -10,6 +10,7 @@ import {
 import {
   accountListSchema,
   accountSchema,
+  customerSummarySchema,
   balanceSchema,
   statementListSchema,
   statementSchema,
@@ -67,6 +68,7 @@ export function buildRegistry(): ContractRegistry {
     .schema("ErrorResponse", errorResponseSchema)
     .schema("CapabilityReport", capabilityReportSchema)
     .schema("Account", accountSchema)
+    .schema("CustomerSummary", customerSummarySchema)
     .schema("AccountList", accountListSchema)
     .schema("Balance", balanceSchema)
     .schema("Transaction", transactionSchema)
@@ -107,7 +109,10 @@ export function buildRegistry(): ContractRegistry {
         summary:
           "Find one customer by an exact identifier. No listing, no prefix search.",
         responses: {
-          "200": { description: "The customer and their provider links" },
+          "200": {
+            description: "The customer and their provider links",
+            schema: "CustomerSummary",
+          },
           "400": {
             description: "Supply exactly one identifier",
             schema: "ErrorResponse",
