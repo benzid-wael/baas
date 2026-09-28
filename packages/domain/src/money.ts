@@ -7,7 +7,22 @@ import {
 } from "./errors.js";
 
 /** Optional sign, whole part, optional fractional part. No exponent, no space. */
-const DECIMAL = /^(-?)(\d+)(?:\.(\d+))?$/;
+/**
+ * A signed decimal, with no capture groups (New-6).
+ *
+ * It used to capture the sign, the whole part and the fraction, and the first
+ * two were read with `?? ""` fallbacks that could never fire: `(-?)` yields an
+ * empty string rather than `undefined`, and `(\d+)` cannot be absent when the
+ * pattern matches at all. They existed only to satisfy
+ * `noUncheckedIndexedAccess`.
+ *
+ * **An unreachable branch in a money parser is indistinguishable, at a glance,
+ * from an unhandled case.** The next reader has to re-derive that it cannot
+ * happen, in the one file where that reasoning is most expensive. So the shape
+ * is validated here and taken apart below with `indexOf` and `slice`, neither
+ * of which returns anything optional.
+ */
+const DECIMAL = /^-?\d+(?:\.\d+)?$/;
 
 /** Render signed minor units at an arbitrary scale. Pure, no `Number`. */
 function formatUnits(units: bigint, scale: number): string {
@@ -54,18 +69,24 @@ export class Money {
    */
   static of(amount: string, currency: CurrencyCode): Money {
     const scale = scaleOf(currency);
-    const match = DECIMAL.exec(amount);
-    if (match === null) {
+    if (!DECIMAL.test(amount)) {
       throw new InvalidAmountError(amount, currency);
     }
-    const sign = match[1] ?? "";
-    const whole = match[2] ?? "";
-    const fraction = match[3] ?? "";
+
+    const negative = amount.startsWith("-");
+    const digits = negative ? amount.slice(1) : amount;
+    const point = digits.indexOf(".");
+    const whole = point === -1 ? digits : digits.slice(0, point);
+    const fraction = point === -1 ? "" : digits.slice(point + 1);
+
     if (fraction.length > scale) {
+      // Refused, never rounded. Rounding a customer's money to fit a scale is
+      // a decision this type is not entitled to make.
       throw new AmountPrecisionError(amount, currency, scale);
     }
+
     const units = BigInt(whole + fraction.padEnd(scale, "0"));
-    return new Money(sign === "-" ? -units : units, currency);
+    return new Money(negative ? -units : units, currency);
   }
 
   static fromMinorUnits(minorUnits: bigint, currency: CurrencyCode): Money {

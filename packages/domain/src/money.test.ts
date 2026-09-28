@@ -215,3 +215,44 @@ describe("Money construction helpers", () => {
     expect(Object.isFrozen(money)).toBe(true);
   });
 });
+
+/**
+ * The shapes the parser takes apart (New-6).
+ *
+ * `Money.of` used to read regex groups with `?? ""` fallbacks that could never
+ * fire. It now splits the string with `indexOf` and `slice`, so every branch
+ * is one a real input reaches — these are those inputs, named.
+ */
+describe("taking a decimal apart", () => {
+  it("handles a negative with a fraction", () => {
+    expect(Money.of("-1234.50", "AED").minorUnits).toBe(-123_450n);
+  });
+
+  it("handles a negative without one", () => {
+    expect(Money.of("-1", "AED").minorUnits).toBe(-100n);
+  });
+
+  it("handles a positive without one", () => {
+    expect(Money.of("1", "AED").minorUnits).toBe(100n);
+  });
+
+  it("treats negative zero as zero", () => {
+    // `-0n` and `0n` are the same value; there is no signed zero in bigint,
+    // and a balance of "-0.00" must not render with a minus sign.
+    expect(Money.of("-0.00", "AED").toDecimalString()).toBe("0.00");
+    expect(Money.of("-0.00", "AED").minorUnits).toBe(0n);
+  });
+
+  it("refuses a decimal point with nothing on one side of it", () => {
+    // The pattern requires digits either side. Without that, `.5` and `1.`
+    // would reach `BigInt("")` and throw something unhelpful.
+    expect(() => Money.of(".5", "AED")).toThrow(InvalidAmountError);
+    expect(() => Money.of("1.", "AED")).toThrow(InvalidAmountError);
+  });
+
+  it("refuses an explicit plus sign", () => {
+    // Not because it is ambiguous, but because accepting two spellings of the
+    // same amount makes a string comparison of amounts unsound.
+    expect(() => Money.of("+1", "AED")).toThrow(InvalidAmountError);
+  });
+});
