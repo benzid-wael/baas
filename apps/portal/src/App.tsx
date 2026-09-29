@@ -3,9 +3,12 @@ import type { ApiClient } from "./api.js";
 import { SystemPanel } from "./system-panel.js";
 import { CustomerScreen } from "./customer.js";
 import { RequestLog } from "./request-log.js";
+import { ApiClientsScreen } from "./api-clients.js";
 import { beginSignIn, completeSignIn } from "./oidc.js";
 import type { FlowStore } from "./oidc.js";
 import type { PortalConfig } from "./config.js";
+import { instantToMillis, systemNow } from "./clock.js";
+import type { Now } from "./clock.js";
 
 /**
  * The shell (MP-6, MP-7a).
@@ -36,6 +39,12 @@ export interface AppProps {
    * exercised against a real provider is a flow nobody tests.
    */
   readonly fetchImpl?: typeof fetch;
+  /**
+   * The wall clock, for the session countdown. Injected for the same reason
+   * as everything else here: a warning that only appears in the last hour of
+   * an eight-hour session is otherwise untestable.
+   */
+  readonly now?: Now;
 }
 
 type Phase =
@@ -46,6 +55,7 @@ type Phase =
 export function App(props: AppProps): React.JSX.Element {
   const { api, config, store, location, navigate, clearQuery } = props;
   const fetchImpl = props.fetchImpl;
+  const now = props.now ?? systemNow;
   const [phase, setPhase] = useState<Phase>(
     api.signedIn ? { kind: "signed-in" } : { kind: "signed-out" },
   );
@@ -60,9 +70,9 @@ export function App(props: AppProps): React.JSX.Element {
    * and would look perfectly healthy against a dead API. It is also the screen
    * an incident starts on.
    */
-  const [screen, setScreen] = useState<"customers" | "requests" | "system">(
-    "system",
-  );
+  const [screen, setScreen] = useState<
+    "customers" | "requests" | "clients" | "system"
+  >("system");
 
   const fail = useCallback((cause: unknown): void => {
     setError(cause instanceof Error ? cause.message : "Something went wrong.");
@@ -152,12 +162,23 @@ export function App(props: AppProps): React.JSX.Element {
             >
               System
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setScreen("clients");
+              }}
+              aria-current={screen === "clients" ? "page" : undefined}
+            >
+              API clients
+            </button>
+            <SessionExpiry api={api} now={now} />
             <button type="button" onClick={signOut}>
               Sign out
             </button>
           </nav>
           {screen === "customers" && <CustomerScreen api={api} />}
           {screen === "requests" && <RequestLog api={api} />}
+          {screen === "clients" && <ApiClientsScreen api={api} />}
           {screen === "system" && <SystemPanel api={api} />}
         </>
       )}
@@ -190,4 +211,52 @@ function redirectUriOf(href: string): string {
   url.search = "";
   url.hash = "";
   return url.toString();
+}
+
+/**
+ * How long this session has left (finding F1).
+ *
+ * "A window with an expiry must show a countdown rather than silently
+ * lapsing." The session is eight hours and the sign-in response has carried
+ * `expiresAt` since MP-1, unread — so until now it lapsed silently, and an
+ * operator part-way through a form found out by being refused.
+ *
+ * Coarse on purpose, and it only speaks up in the last hour. A permanent
+ * ticking clock on a console somebody keeps open all day is noise, and noise
+ * is what gets ignored when it finally matters.
+ */
+function SessionExpiry({
+  api,
+  now: readClock,
+}: {
+  api: ApiClient;
+  now: Now;
+}): React.JSX.Element | null {
+  const [now, setNow] = useState(() => readClock());
+
+  useEffect(() => {
+    // Half the resolution it reports, so a minute never appears to be skipped.
+    const timer = setInterval(() => {
+      setNow(readClock());
+    }, 30_000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [readClock]);
+
+  const expiresAt = api.expiresAt;
+  if (expiresAt === undefined) {
+    return null;
+  }
+  const minutes = Math.floor((instantToMillis(expiresAt) - now) / 60_000);
+  if (Number.isNaN(minutes) || minutes > 60) {
+    return null;
+  }
+  return (
+    <span role="status">
+      {minutes <= 0
+        ? " Your session has ended — sign in again."
+        : ` Your session ends in ${minutes.toString()} ${minutes === 1 ? "minute" : "minutes"}.`}
+    </span>
+  );
 }

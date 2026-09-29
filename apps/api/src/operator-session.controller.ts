@@ -63,9 +63,11 @@ export class OperatorSessionController {
   @Post("sessions")
   @Public()
   @HttpCode(201)
-  async signIn(
-    @Body() body: SignInRequest,
-  ): Promise<{ token: string; expiresAt: string }> {
+  async signIn(@Body() body: SignInRequest): Promise<{
+    token: string;
+    expiresAt: string;
+    roles: readonly string[];
+  }> {
     if (typeof body.idToken !== "string" || body.idToken === "") {
       throw new BadRequestException("idToken is required");
     }
@@ -102,9 +104,21 @@ export class OperatorSessionController {
       this.deps.operators.issueSession(db, tenantId, operator.id),
     );
 
+    // The roles go back with the session (MP-10, finding F1).
+    //
+    // Without them the console cannot disable a control and say why: it would
+    // offer "grant scope" to everyone and let the API answer 403, which is the
+    // dead end F1 is about. They are not a security control — the guards on
+    // every route are — they are what lets the screen be honest about what
+    // this person can do.
+    const roles = await this.deps.scope.run(tenantId, (db) =>
+      this.deps.operators.rolesOf(db, operator.id),
+    );
+
     return {
       token: session.token,
       expiresAt: formatInstant(session.expiresAt),
+      roles,
     };
   }
 

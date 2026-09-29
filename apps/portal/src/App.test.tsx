@@ -5,6 +5,7 @@ import { App } from "./App.js";
 import { ApiClient } from "./api.js";
 import type { FlowStore } from "./oidc.js";
 import type { PortalConfig } from "./config.js";
+import { instantToMillis } from "./clock.js";
 
 /**
  * The shell, end to end within the browser (MP-6, MP-7a).
@@ -222,5 +223,84 @@ describe("signed in", () => {
     expect(
       await screen.findByRole("heading", { name: /sign in/i }),
     ).toBeDefined();
+  });
+});
+
+/**
+ * The session countdown (MP-10, finding F1).
+ *
+ * "A window with an expiry must show a countdown rather than silently
+ * lapsing." `expiresAt` has come back with every sign-in since MP-1 and
+ * nothing read it, so a session ended mid-form and the operator found out by
+ * being refused.
+ */
+describe("the session's remaining time", () => {
+  /**
+   * A fixed clock, so these assert on arithmetic rather than on how long the
+   * test took. The previous version built its instants from the real clock
+   * and expected "10 minutes" from an eleven-minute session, which only
+   * passed because a millisecond or two elapsed in between.
+   */
+  const NOW = instantToMillis("2026-09-28T12:00:00.000Z");
+
+  async function signedInWith(expiresAt: string): Promise<void> {
+    const fetchImpl: typeof fetch = (input) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const body = url.endsWith("/operator/sessions")
+        ? { token: "s", expiresAt, roles: ["admin"] }
+        : SYSTEM_STATE;
+      return Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status: url.endsWith("/operator/sessions") ? 201 : 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    };
+    const api = new ApiClient(CONFIG, fetchImpl);
+    // Awaited: `App` decides its opening phase from `api.signedIn`, so a
+    // render that races the sign-in opens signed out and the nav — which is
+    // where the countdown lives — never renders at all.
+    await api.signIn("id-token");
+    render(
+      <App
+        api={api}
+        config={CONFIG}
+        store={memoryStore()}
+        location={{ href: "https://portal.example/", search: "" }}
+        navigate={vi.fn()}
+        clearQuery={vi.fn()}
+        fetchImpl={fetchImpl}
+        now={() => NOW}
+      />,
+    );
+  }
+
+  it("says nothing while there is plenty of time", async () => {
+    // A permanent ticking clock on a console somebody keeps open all day is
+    // noise, and noise is what gets ignored when it finally matters.
+    await signedInWith("2026-09-28T20:00:00.000Z");
+    await vi.waitFor(() => {
+      expect(screen.getByRole("heading", { name: /^system$/i })).toBeDefined();
+    });
+    expect(screen.queryByText(/your session ends/i)).toBeNull();
+  });
+
+  it("warns inside the last hour", async () => {
+    await signedInWith("2026-09-28T12:11:00.000Z");
+    expect(
+      await screen.findByText(/session ends in 11 minutes/i),
+    ).toBeDefined();
+  });
+
+  it("says a single minute in the singular", async () => {
+    await signedInWith("2026-09-28T12:01:00.000Z");
+    expect(
+      await screen.findByText(/session ends in 1 minute\b/i),
+    ).toBeDefined();
+  });
+
+  it("says plainly when it has already ended", async () => {
+    await signedInWith("2026-09-28T11:59:00.000Z");
+    expect(await screen.findByText(/session has ended/i)).toBeDefined();
   });
 });

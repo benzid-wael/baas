@@ -196,15 +196,16 @@ these three before debugging anything else.
 
 ### What the console can do
 
-Three screens, and **System is where you land** — it reads the API the moment
+Four screens, and **System is where you land** — it reads the API the moment
 the session exists, so a session that cannot reach the service says so on
-arrival. The other two call nothing until you ask them to.
+arrival. The other three call nothing until you ask them to.
 
 | Screen                | What it answers                                                                                                                                                                                                |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **System**            | each provider available or **why not**, in a sentence naming who should look at it; effects awaiting an outcome; inbox backlog; callbacks that failed their signature; schema drift with the offending columns |
 | **Customers**         | find one by exact identifier, see their accounts with honest balances, page their transactions                                                                                                                 |
 | **Provider requests** | every call to a provider, filterable by **account reference**, correlation id or provider; open one for the scrubbed bodies                                                                                    |
+| **API clients**       | every client and its scope history; grant a scope with a reason, revoke a live grant. Admin only — a non-admin sees the history and disabled controls that say why                                             |
 
 Things worth trying, because each is a decision you may disagree with:
 
@@ -217,6 +218,15 @@ Things worth trying, because each is a decision you may disagree with:
 - The customer screen states that **every lookup is recorded against your
   name**, including ones that find nothing. An audit trail the audited do not
   know about is a trap rather than a control.
+- On **API clients**, sign in as a subject with no admin role: the grant
+  control is disabled and says _why_, rather than being offered and then
+  refused with a 403. That is finding F1, and it is the rule for every control
+  on the screen.
+- Leave the console open past its eight-hour session and it warns you in the
+  last hour rather than lapsing silently mid-form. Roles, though, are read
+  **once at sign-in** — revoke somebody's admin role and their open console
+  keeps offering the control until they sign in again. The API refuses it; the
+  screen is the thing that is wrong (New-28).
 - There is **no way to reach a customer by URL**. The back button does not work
   inside the console; that is the trade, and it means a link pasted into a chat
   carries nothing.
@@ -230,7 +240,7 @@ checked against the published schemas.
 
 **Not verified: the sign-in round trip against a real provider.** It needs
 `mock-oauth2-server`, which needs a Docker daemon. Both halves are covered by
-tests — `operator-signin.test.ts` for the service, 85 portal tests for the
+tests — `operator-signin.test.ts` for the service, 100 portal tests for the
 browser — but the seam between them, with a real provider in the middle, has
 not been exercised by a person. **It is the first thing to try, and the first
 thing to suspect.**
@@ -239,13 +249,12 @@ thing to suspect.**
 
 ## 5. Not yet reachable
 
-|                                                    | Why                                                                                                                       | Task       |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| Real balances, live provider calls                 | No provider credentials configured. `/system/capabilities` reports `not_configured` rather than hiding it                 | —          |
-| Verified partner callbacks                         | Need `PROVIDER_<NAME>_WEBHOOK_PUBLIC_KEY` or `_CALLBACK_HMAC_SECRET`. Unsigned deliveries are still recorded, as rejected | —          |
-| The portal **in Docker**                           | The image and compose service exist and **have never been built** — the daemon was never used                             | New-23     |
-| Editing an API client's scopes from the console    | The API is done (MP-3); the screen waits on whether a grant needs two people                                              | MP-10, O16 |
-| Anything that **writes** — payments, beneficiaries | Not built. Everything above is a read                                                                                     | M2, M3     |
+|                                                    | Why                                                                                                                       | Task   |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Real balances, live provider calls                 | No provider credentials configured. `/system/capabilities` reports `not_configured` rather than hiding it                 | —      |
+| Verified partner callbacks                         | Need `PROVIDER_<NAME>_WEBHOOK_PUBLIC_KEY` or `_CALLBACK_HMAC_SECRET`. Unsigned deliveries are still recorded, as rejected | —      |
+| The portal **in Docker**                           | The image and compose service exist and **have never been built** — the daemon was never used                             | New-23 |
+| Anything that **writes** — payments, beneficiaries | Not built. Everything above is a read                                                                                     | M2, M3 |
 
 The read surface is now exercisable by a person end to end: seed, sign in,
 find a customer, see honest balances, trace a provider call. That was the shape

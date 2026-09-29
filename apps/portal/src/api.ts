@@ -25,6 +25,14 @@ export class ApiError extends Error {
 export interface Session {
   readonly token: string;
   readonly expiresAt: string;
+  /**
+   * What this operator may do, so a control can be disabled *with a reason*
+   * rather than offered and then refused (finding F1).
+   *
+   * Not a security control. Every route is guarded server-side and a browser
+   * can claim anything; this only decides what the screen says.
+   */
+  readonly roles: readonly string[];
 }
 
 export class ApiClient {
@@ -45,6 +53,16 @@ export class ApiClient {
 
   get signedIn(): boolean {
     return this.session !== undefined;
+  }
+
+  /** Empty when signed out, which renders as "you cannot do this". */
+  get roles(): readonly string[] {
+    return this.session?.roles ?? [];
+  }
+
+  /** When the session lapses, so the shell can say so before it does (F1). */
+  get expiresAt(): string | undefined {
+    return this.session?.expiresAt;
   }
 
   /** Exchange a verified identity-provider token for a `baas` session. */
@@ -69,6 +87,15 @@ export class ApiClient {
 
   get<T>(path: string): Promise<T> {
     return this.request<T>("GET", path);
+  }
+
+  post<T>(path: string, body: unknown): Promise<T> {
+    return this.request<T>("POST", path, body);
+  }
+
+  /** `remove`, not `delete`: the latter is a reserved word as a method name. */
+  remove<T>(path: string): Promise<T> {
+    return this.request<T>("DELETE", path);
   }
 
   private async request<T>(

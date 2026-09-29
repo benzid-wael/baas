@@ -76,6 +76,9 @@ const NO_INTERPOLATED_LOG_MESSAGE = [
 const CLOCK_BOUNDARY_FILES = [
   "packages/platform/src/clock.ts",
   "packages/platform/src/clock.test.ts",
+  // The browser's own boundary. `@baas/platform` runs on Node, so the portal
+  // cannot import the port above and needs one permitted file of its own.
+  "apps/portal/src/clock.ts",
 ];
 
 const TOOLING_FILES = [
